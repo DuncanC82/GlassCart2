@@ -5,11 +5,27 @@ const { v4: uuidv4 } = require('uuid');
 const models = require('./models');
 const { Pool } = require('pg');
 const QRCode = require('qrcode');
+const swaggerUi = require('swagger-ui-express');
+const swaggerJsdoc = require('swagger-jsdoc');
 const app = express();
 
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
+
+// Swagger setup
+const swaggerSpec = swaggerJsdoc({
+  definition: {
+    openapi: '3.0.0',
+    info: {
+      title: 'GlassCart API',
+      version: '1.0.0',
+    },
+  },
+  apis: ['./backend/*.js'], // Adjust path if your routes are elsewhere
+});
+
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // DB Connection
 const pool = new Pool({
