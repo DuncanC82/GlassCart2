@@ -5,14 +5,10 @@
     "express": "^5.1.0",
     "mongoose": "^8.14.2",
     "qrcode": "^1.5.4",
-    "react-router-dom": "^7.6.0",
-    "react-scripts": "^5.0.1",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1"
   },
-  "devDependencies": {},
   "scripts": {
-    "build": "react-scripts build",
-    "start": "react-scripts start"
+    "start": "node backend/index.js"
   }
 }
