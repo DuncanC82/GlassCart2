@@ -9,5 +9,9 @@
     "react-scripts": "^5.0.1",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1"
+  },
+  "scripts": {
+    "build": "react-scripts build",
+    "start": "react-scripts start"
   }
 }
