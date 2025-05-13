@@ -1,138 +1,160 @@
-const mongoose = require('mongoose');
-const { User, Product, Campaign, Order, Payout, Analytics } = require('./models');
+const { Pool } = require('pg');
+const { v4: uuidv4 } = require('uuid');
 
-mongoose.connect('mongodb://localhost:27017/glasscart', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
 });
 
 async function seed() {
+  const client = await pool.connect();
   try {
-    // Clear all collections
-    await Promise.all([
-      User.deleteMany({}),
-      Product.deleteMany({}),
-      Campaign.deleteMany({}),
-      Order.deleteMany({}),
-      Payout.deleteMany({}),
-      Analytics.deleteMany({})
-    ]);
+    // Create tables if they do not exist
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id UUID PRIMARY KEY,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        role TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS products (
+        id UUID PRIMARY KEY,
+        distributor_id UUID REFERENCES users(id),
+        name TEXT NOT NULL,
+        price NUMERIC NOT NULL,
+        description TEXT,
+        image_url TEXT,
+        stock_quantity INTEGER
+      );
+      CREATE TABLE IF NOT EXISTS campaigns (
+        id UUID PRIMARY KEY,
+        advertiser_id UUID REFERENCES users(id),
+        product_id UUID REFERENCES products(id),
+        campaign_name TEXT NOT NULL,
+        start_date TIMESTAMP,
+        end_date TIMESTAMP,
+        qr_code_identifier TEXT,
+        commission_percent INTEGER,
+        location TEXT
+      );
+      CREATE TABLE IF NOT EXISTS orders (
+        id UUID PRIMARY KEY,
+        customer_id UUID REFERENCES users(id),
+        product_id UUID REFERENCES products(id),
+        campaign_id UUID REFERENCES campaigns(id),
+        quantity INTEGER,
+        total_amount NUMERIC,
+        commission_amount NUMERIC,
+        shipping_address TEXT
+      );
+      CREATE TABLE IF NOT EXISTS payouts (
+        id UUID PRIMARY KEY,
+        recipient_id UUID REFERENCES users(id),
+        order_id UUID REFERENCES orders(id),
+        amount NUMERIC,
+        type TEXT
+      );
+      CREATE TABLE IF NOT EXISTS analytics (
+        id UUID PRIMARY KEY,
+        adlocation TEXT,
+        format TEXT,
+        clicks INTEGER,
+        conversions INTEGER
+      );
+    `);
+
+    // Clear all tables
+    await client.query('DELETE FROM analytics');
+    await client.query('DELETE FROM payouts');
+    await client.query('DELETE FROM orders');
+    await client.query('DELETE FROM campaigns');
+    await client.query('DELETE FROM products');
+    await client.query('DELETE FROM users');
 
     // Create users
-    const distributor = new User({
-      name: 'Kathmandu',
-      email: 'distributor@kathmandu.co.nz',
-      role: 'distributor'
-    });
+    const distributorId = uuidv4();
+    const advertiserId = uuidv4();
+    const customerId = uuidv4();
 
-    const advertiser = new User({
-      name: 'Go Media',
-      email: 'ads@gomedia.nz',
-      role: 'advertiser'
-    });
-
-    const customer = new User({
-      name: 'Jane Doe',
-      email: 'jane@example.com',
-      role: 'customer'
-    });
-
-    await distributor.save();
-    await advertiser.save();
-    await customer.save();
+    await client.query(
+      `INSERT INTO users (id, name, email, role) VALUES
+      ($1, $2, $3, $4),
+      ($5, $6, $7, $8),
+      ($9, $10, $11, $12)`,
+      [
+        distributorId, 'Kathmandu', 'distributor@kathmandu.co.nz', 'distributor',
+        advertiserId, 'Go Media', 'ads@gomedia.nz', 'advertiser',
+        customerId, 'Jane Doe', 'jane@example.com', 'customer'
+      ]
+    );
 
     // Create products
-    const products = await Product.insertMany([
-      {
-        distributor_id: distributor._id,
-        name: 'GlassCart QR T-Shirt',
-        price: 39.99,
-        description: 'Premium cotton t-shirt with GlassCart QR code.',
-        image_url: 'https://via.placeholder.com/120x120?text=QR+Tee',
-        stock_quantity: 50
-      },
-      {
-        distributor_id: distributor._id,
-        name: 'GlassCart Water Bottle',
-        price: 24.99,
-        description: 'Stainless steel bottle with GlassCart branding.',
-        image_url: 'https://via.placeholder.com/120x120?text=Bottle',
-        stock_quantity: 100
-      },
-      {
-        distributor_id: distributor._id,
-        name: 'GlassCart Tote Bag',
-        price: 14.99,
-        description: 'Eco-friendly tote bag for everyday use.',
-        image_url: 'https://via.placeholder.com/120x120?text=Tote+Bag',
-        stock_quantity: 75
-      }
-    ]);
+    const product1Id = uuidv4();
+    const product2Id = uuidv4();
+    const product3Id = uuidv4();
+
+    await client.query(
+      `INSERT INTO products (id, distributor_id, name, price, description, image_url, stock_quantity) VALUES
+      ($1, $2, $3, $4, $5, $6, $7),
+      ($8, $2, $9, $10, $11, $12, $13),
+      ($14, $2, $15, $16, $17, $18, $19)`,
+      [
+        product1Id, distributorId, 'GlassCart QR T-Shirt', 39.99, 'Premium cotton t-shirt with GlassCart QR code.', 'https://via.placeholder.com/120x120?text=QR+Tee', 50,
+        product2Id, 'GlassCart Water Bottle', 24.99, 'Stainless steel bottle with GlassCart branding.', 'https://via.placeholder.com/120x120?text=Bottle', 100,
+        product3Id, 'GlassCart Tote Bag', 14.99, 'Eco-friendly tote bag for everyday use.', 'https://via.placeholder.com/120x120?text=Tote+Bag', 75
+      ]
+    );
 
     // Create campaign
-    const campaign = new Campaign({
-      advertiser_id: advertiser._id,
-      product_id: products[0]._id,
-      campaign_name: 'Winter QR Campaign',
-      start_date: new Date(),
-      end_date: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
-      qr_code_identifier: 'winter_qr_2025',
-      commission_percent: 10,
-      location: 'Wellington Bus Stop'
-    });
-
-    await campaign.save();
+    const campaignId = uuidv4();
+    await client.query(
+      `INSERT INTO campaigns (id, advertiser_id, product_id, campaign_name, start_date, end_date, qr_code_identifier, commission_percent, location)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [
+        campaignId, advertiserId, product1Id, 'Winter QR Campaign',
+        new Date(), new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
+        'winter_qr_2025', 10, 'Wellington Bus Stop'
+      ]
+    );
 
     // Create order
-    const order = new Order({
-      customer_id: customer._id,
-      product_id: products[0]._id,
-      campaign_id: campaign._id,
-      quantity: 2,
-      total_amount: 79.98,
-      commission_amount: 7.99,
-      shipping_address: '123 Queen Street, Auckland'
-    });
-
-    await order.save();
+    const orderId = uuidv4();
+    await client.query(
+      `INSERT INTO orders (id, customer_id, product_id, campaign_id, quantity, total_amount, commission_amount, shipping_address)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        orderId, customerId, product1Id, campaignId, 2, 79.98, 7.99, '123 Queen Street, Auckland'
+      ]
+    );
 
     // Create payouts
-    await Payout.insertMany([
-      {
-        recipient_id: advertiser._id,
-        order_id: order._id,
-        amount: 7.99,
-        type: 'advertiser_commission'
-      },
-      {
-        recipient_id: distributor._id,
-        order_id: order._id,
-        amount: 71.99,
-        type: 'distributor_revenue'
-      }
-    ]);
+    await client.query(
+      `INSERT INTO payouts (id, recipient_id, order_id, amount, type) VALUES
+      ($1, $2, $3, $4, $5),
+      ($6, $7, $3, $8, $9)`,
+      [
+        uuidv4(), advertiserId, orderId, 7.99, 'advertiser_commission',
+        uuidv4(), distributorId, 71.99, 'distributor_revenue'
+      ]
+    );
 
     // Create analytics logs
-    await Analytics.insertMany([
-      {
-        adLocation: 'Wellington Bus Stop',
-        format: 'Static QR',
-        clicks: 120,
-        conversions: 5
-      },
-      {
-        adLocation: 'Auckland CBD Window',
-        format: 'Static QR',
-        clicks: 89,
-        conversions: 2
-      }
-    ]);
+    await client.query(
+      `INSERT INTO analytics (id, adlocation, format, clicks, conversions) VALUES
+      ($1, $2, $3, $4, $5),
+      ($6, $7, $8, $9, $10)`,
+      [
+        uuidv4(), 'Wellington Bus Stop', 'Static QR', 120, 5,
+        uuidv4(), 'Auckland CBD Window', 'Static QR', 89, 2
+      ]
+    );
 
     console.log('✅ Seed data inserted successfully!');
   } catch (err) {
     console.error('❌ Error inserting seed data:', err);
   } finally {
-    mongoose.disconnect();
+    client.release();
+    pool.end();
   }
 }
 

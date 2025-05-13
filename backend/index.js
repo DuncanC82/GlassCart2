@@ -1,9 +1,10 @@
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const mongoose = require('mongoose');
+const { v4: uuidv4 } = require('uuid');
+const models = require('./models');
+const { Pool } = require('pg');
 const QRCode = require('qrcode');
-const { User, Product, Campaign, Order, Payout, Analytics } = require('./models');
 const app = express();
 
 // Middleware
@@ -11,11 +12,24 @@ app.use(cors());
 app.use(bodyParser.json());
 
 // DB Connection
-mongoose.connect('mongodb://localhost:27017/glasscart', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-}).then(() => console.log('MongoDB Connected'))
-  .catch(err => console.error('DB Error:', err));
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
+
+// Example: test connection
+pool.connect()
+  .then(client => {
+    return client.query('SELECT NOW()')
+      .then(res => {
+        console.log('Postgres connected:', res.rows[0]);
+        client.release();
+      })
+      .catch(err => {
+        client.release();
+        console.error('Postgres connection error', err.stack);
+      });
+  });
 
 // Base
 app.get('/', (req, res) => {
@@ -37,18 +51,33 @@ app.post('/generate-qr', async (req, res) => {
 
 // Products
 app.get('/products', async (req, res) => {
-  const products = await Product.find().populate('distributor_id');
+  const products = await models.getAllProducts();
   res.json(products);
 });
 
+app.get('/products/:id', async (req, res) => {
+  const product = await models.getProductById(req.params.id);
+  if (product) res.json(product);
+  else res.status(404).json({ error: 'Not found' });
+});
+
 app.post('/products', async (req, res) => {
-  const { distributor_id, name, price, description, image_url, stock_quantity } = req.body;
-  if (!distributor_id || !name || !price || !stock_quantity) {
-    return res.status(400).json({ error: 'Missing required fields' });
-  }
-  const product = new Product({ distributor_id, name, price, description, image_url, stock_quantity });
-  await product.save();
+  const id = uuidv4();
+  const { name, price } = req.body;
+  const product = await models.createProduct({ id, name, price });
   res.status(201).json(product);
+});
+
+app.put('/products/:id', async (req, res) => {
+  const { name, price } = req.body;
+  const product = await models.updateProduct(req.params.id, { name, price });
+  if (product) res.json(product);
+  else res.status(404).json({ error: 'Not found' });
+});
+
+app.delete('/products/:id', async (req, res) => {
+  await models.deleteProduct(req.params.id);
+  res.status(204).end();
 });
 
 // Campaigns
@@ -57,8 +86,7 @@ app.post('/campaigns', async (req, res) => {
   if (!advertiser_id || !product_id || !campaign_name || !qr_code_identifier) {
     return res.status(400).json({ error: 'Missing campaign data' });
   }
-  const campaign = new Campaign({ advertiser_id, product_id, campaign_name, start_date, end_date, qr_code_identifier, commission_percent, location });
-  await campaign.save();
+  const campaign = await models.createCampaign({ advertiser_id, product_id, campaign_name, start_date, end_date, qr_code_identifier, commission_percent, location });
   res.status(201).json(campaign);
 });
 
@@ -68,8 +96,7 @@ app.post('/orders', async (req, res) => {
   if (!customer_id || !product_id || !total_amount || !shipping_address) {
     return res.status(400).json({ error: 'Missing order data' });
   }
-  const order = new Order({ customer_id, product_id, campaign_id, quantity, total_amount, commission_amount, shipping_address });
-  await order.save();
+  const order = await models.createOrder({ customer_id, product_id, campaign_id, quantity, total_amount, commission_amount, shipping_address });
   res.status(201).json(order);
 });
 
@@ -79,8 +106,7 @@ app.post('/payouts', async (req, res) => {
   if (!recipient_id || !order_id || !amount || !type) {
     return res.status(400).json({ error: 'Missing payout data' });
   }
-  const payout = new Payout({ recipient_id, order_id, amount, type });
-  await payout.save();
+  const payout = await models.createPayout({ recipient_id, order_id, amount, type });
   res.status(201).json(payout);
 });
 
@@ -88,16 +114,17 @@ app.post('/payouts', async (req, res) => {
 app.post('/analytics', async (req, res) => {
   const { adLocation, format, clicks, conversions } = req.body;
   if (!adLocation || !format) return res.status(400).json({ error: 'Ad location and format required' });
-  const log = new Analytics({ adLocation, format, clicks, conversions });
-  await log.save();
+  const log = await models.createAnalyticsLog({ adLocation, format, clicks, conversions });
   res.status(201).json(log);
 });
 
 app.get('/analytics', async (req, res) => {
-  const logs = await Analytics.find().sort({ time: -1 });
+  const logs = await models.getAnalyticsLogs();
   res.json(logs);
 });
 
 // Start
-const PORT = 5000;
-app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
