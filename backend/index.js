@@ -1,13 +1,16 @@
+// index.js
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const { v4: uuidv4 } = require('uuid');
 const models = require('./models');
-const { Pool } = require('pg');
 const QRCode = require('qrcode');
 const swaggerUi = require('swagger-ui-express');
 const swaggerJsdoc = require('swagger-jsdoc');
+
 const app = express();
+const BASE_URL = process.env.BASE_URL || 'https://glasscart2.onrender.com';
+const FRONTEND_URL = process.env.FRONTEND_URL || BASE_URL;
 
 // Middleware
 app.use(cors());
@@ -25,39 +28,16 @@ const swaggerSpec = swaggerJsdoc({
   },
   apis: ['./index.js']
 });
-
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-
-// DB Connection
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
-});
-
-pool.connect()
-  .then(client => client.query('SELECT NOW()')
-    .then(res => {
-      console.log('Postgres connected:', res.rows[0]);
-      client.release();
-    })
-    .catch(err => {
-      client.release();
-      console.error('Postgres connection error', err.stack);
-    }));
 
 /**
  * @swagger
  * /:
  *   get:
- *     summary: GlassCart API health check
+ *     summary: Health check
  *     responses:
  *       200:
  *         description: API is running
- *         content:
- *           text/plain:
- *             schema:
- *               type: string
- *             example: GlassCart API is running
  */
 app.get('/', (req, res) => {
   res.send('GlassCart API is running');
@@ -67,7 +47,7 @@ app.get('/', (req, res) => {
  * @swagger
  * /generate-qr:
  *   post:
- *     summary: Generate QR code from URL
+ *     summary: Generate a QR code from a URL
  *     requestBody:
  *       required: true
  *       content:
@@ -80,7 +60,7 @@ app.get('/', (req, res) => {
  *                 example: "https://glasscart.com"
  *     responses:
  *       200:
- *         description: QR Code generated
+ *         description: QR code data URL
  *         content:
  *           application/json:
  *             schema:
@@ -88,15 +68,15 @@ app.get('/', (req, res) => {
  *               properties:
  *                 qrCode:
  *                   type: string
- *                   example: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
  */
 app.post('/generate-qr', async (req, res) => {
   const { url } = req.body;
   if (!url) return res.status(400).json({ error: 'URL required' });
   try {
-    const qr = await QRCode.toDataURL(url);
-    res.json({ qrCode: qr });
+    const qrCode = await QRCode.toDataURL(url);
+    res.json({ qrCode });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'QR generation failed' });
   }
 });
@@ -105,22 +85,12 @@ app.post('/generate-qr', async (req, res) => {
  * @swagger
  * /products:
  *   get:
- *     summary: Get all products
+ *     summary: List all products
  *     responses:
  *       200:
- *         description: Product list
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 type: object
- *                 properties:
- *                   id: { type: string, example: "uuid" }
- *                   name: { type: string, example: "GlassCart QR T-Shirt" }
- *                   price: { type: number, example: 39.99 }
+ *         description: Array of products
  *   post:
- *     summary: Add a new product
+ *     summary: Create a new product
  *     requestBody:
  *       required: true
  *       content:
@@ -129,23 +99,22 @@ app.post('/generate-qr', async (req, res) => {
  *             type: object
  *             required: [name, price]
  *             properties:
- *               name: { type: string, example: "GlassCart QR T-Shirt" }
- *               price: { type: number, example: 39.99 }
+ *               name: { type: string }
+ *               price: { type: number }
  *     responses:
  *       201:
  *         description: Product created
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 id: { type: string, example: "uuid" }
- *                 name: { type: string, example: "GlassCart QR T-Shirt" }
- *                 price: { type: number, example: 39.99 }
  */
 app.get('/products', async (req, res) => {
   const products = await models.getAllProducts();
   res.json(products);
+});
+
+app.post('/products', async (req, res) => {
+  const id = uuidv4();
+  const { name, price } = req.body;
+  const product = await models.createProduct({ id, name, price });
+  res.status(201).json(product);
 });
 
 /**
@@ -156,26 +125,16 @@ app.get('/products', async (req, res) => {
  *     parameters:
  *       - in: path
  *         name: id
- *         required: true
  *         schema: { type: string }
+ *         required: true
  *     responses:
- *       200:
- *         description: Product found
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 id: { type: string, example: "uuid" }
- *                 name: { type: string, example: "GlassCart QR T-Shirt" }
- *                 price: { type: number, example: 39.99 }
- *       404:
- *         description: Product not found
+ *       200: { description: Product found }
+ *       404: { description: Not found }
  *   put:
  *     summary: Update a product
  *     parameters:
- *       - name: id
- *         in: path
+ *       - in: path
+ *         name: id
  *         required: true
  *         schema: { type: string }
  *     requestBody:
@@ -184,21 +143,11 @@ app.get('/products', async (req, res) => {
  *           schema:
  *             type: object
  *             properties:
- *               name: { type: string, example: "Updated Name" }
- *               price: { type: number, example: 49.99 }
+ *               name: { type: string }
+ *               price: { type: number }
  *     responses:
- *       200:
- *         description: Product updated
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 id: { type: string }
- *                 name: { type: string }
- *                 price: { type: number }
- *       404:
- *         description: Product not found
+ *       200: { description: Product updated }
+ *       404: { description: Not found }
  *   delete:
  *     summary: Delete a product
  *     parameters:
@@ -207,8 +156,7 @@ app.get('/products', async (req, res) => {
  *         required: true
  *         schema: { type: string }
  *     responses:
- *       204:
- *         description: Product deleted
+ *       204: { description: No content }
  */
 app.get('/products/:id', async (req, res) => {
   const product = await models.getProductById(req.params.id);
@@ -216,17 +164,10 @@ app.get('/products/:id', async (req, res) => {
   else res.status(404).json({ error: 'Not found' });
 });
 
-app.post('/products', async (req, res) => {
-  const id = uuidv4();
-  const { name, price } = req.body;
-  const product = await models.createProduct({ id, name, price });
-  res.status(201).json(product);
-});
-
 app.put('/products/:id', async (req, res) => {
   const { name, price } = req.body;
-  const product = await models.updateProduct(req.params.id, { name, price });
-  if (product) res.json(product);
+  const updated = await models.updateProduct(req.params.id, { name, price });
+  if (updated) res.json(updated);
   else res.status(404).json({ error: 'Not found' });
 });
 
@@ -239,7 +180,7 @@ app.delete('/products/:id', async (req, res) => {
  * @swagger
  * /campaigns:
  *   post:
- *     summary: Create a campaign
+ *     summary: Create a new campaign
  *     requestBody:
  *       required: true
  *       content:
@@ -248,28 +189,19 @@ app.delete('/products/:id', async (req, res) => {
  *             type: object
  *             required: [advertiser_id, product_id, campaign_name, qr_code_identifier]
  *             properties:
- *               advertiser_id: { type: string, example: "uuid" }
- *               product_id: { type: string, example: "uuid" }
- *               campaign_name: { type: string, example: "Winter QR Campaign" }
- *               start_date: { type: string, format: date-time, example: "2025-01-01T00:00:00Z" }
- *               end_date: { type: string, format: date-time, example: "2025-02-01T00:00:00Z" }
- *               qr_code_identifier: { type: string, example: "winter_qr_2025" }
- *               commission_percent: { type: integer, example: 10 }
- *               location: { type: string, example: "Wellington Bus Stop" }
+ *               advertiser_id: { type: string }
+ *               product_id: { type: string }
+ *               campaign_name: { type: string }
+ *               start_date: { type: string, format: date-time }
+ *               end_date: { type: string, format: date-time }
+ *               qr_code_identifier: { type: string }
+ *               commission_percent: { type: number }
+ *               location: { type: string }
  *     responses:
- *       201:
- *         description: Campaign created
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 id: { type: string }
- *                 campaign_name: { type: string }
+ *       201: { description: Campaign created }
  */
 app.post('/campaigns', async (req, res) => {
-  const { advertiser_id, product_id, campaign_name, start_date, end_date, qr_code_identifier, commission_percent, location } = req.body;
-  const campaign = await models.createCampaign({ advertiser_id, product_id, campaign_name, start_date, end_date, qr_code_identifier, commission_percent, location });
+  const campaign = await models.createCampaign(req.body);
   res.status(201).json(campaign);
 });
 
@@ -277,28 +209,20 @@ app.post('/campaigns', async (req, res) => {
  * @swagger
  * /orders:
  *   get:
- *     summary: Get all orders
+ *     summary: List orders
+ *     parameters:
+ *       - in: query
+ *         name: customer_id
+ *         schema: { type: string }
+ *       - in: query
+ *         name: distributor_id
+ *         schema: { type: string }
  *     responses:
- *       200:
- *         description: List of orders
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 type: object
- *                 properties:
- *                   id: { type: string }
- *                   customer_id: { type: string }
- *                   product_id: { type: string }
- *                   campaign_id: { type: string }
- *                   quantity: { type: integer }
- *                   total_amount: { type: number }
- *                   commission_amount: { type: number }
- *                   shipping_address: { type: string }
+ *       200: { description: Array of orders }
  *   post:
- *     summary: Create an order
+ *     summary: Create a new order
  *     requestBody:
+ *       required: true
  *       content:
  *         application/json:
  *           schema:
@@ -308,32 +232,25 @@ app.post('/campaigns', async (req, res) => {
  *               customer_id: { type: string }
  *               product_id: { type: string }
  *               campaign_id: { type: string }
- *               quantity: { type: integer }
+ *               quantity: { type: number }
  *               total_amount: { type: number }
  *               commission_amount: { type: number }
  *               shipping_address: { type: string }
  *     responses:
- *       201:
- *         description: Order created
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 id: { type: string }
- *                 customer_id: { type: string }
- *                 product_id: { type: string }
- *                 total_amount: { type: number }
+ *       201: { description: Order created }
  */
-app.post('/orders', async (req, res) => {
-  const { customer_id, product_id, campaign_id, quantity, total_amount, commission_amount, shipping_address } = req.body;
-  const order = await models.createOrder({ customer_id, product_id, campaign_id, quantity, total_amount, commission_amount, shipping_address });
-  res.status(201).json(order);
+app.get('/orders', async (req, res) => {
+  const { customer_id, distributor_id } = req.query;
+  let list;
+  if (customer_id) list = await models.getOrdersByCustomer(customer_id);
+  else if (distributor_id) list = await models.getOrdersByDistributor(distributor_id);
+  else list = await models.getAllOrders();
+  res.json(list);
 });
 
-app.get('/orders', async (req, res) => {
-  const orders = await models.getAllOrders();
-  res.json(orders);
+app.post('/orders', async (req, res) => {
+  const order = await models.createOrder(req.body);
+  res.status(201).json(order);
 });
 
 /**
@@ -344,26 +261,11 @@ app.get('/orders', async (req, res) => {
  *     parameters:
  *       - in: path
  *         name: id
- *         required: true
  *         schema: { type: string }
+ *         required: true
  *     responses:
- *       200:
- *         description: Order found
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 id: { type: string }
- *                 customer_id: { type: string }
- *                 product_id: { type: string }
- *                 campaign_id: { type: string }
- *                 quantity: { type: integer }
- *                 total_amount: { type: number }
- *                 commission_amount: { type: number }
- *                 shipping_address: { type: string }
- *       404:
- *         description: Order not found
+ *       200: { description: Order found }
+ *       404: { description: Not found }
  */
 app.get('/orders/:id', async (req, res) => {
   const order = await models.getOrderById(req.params.id);
@@ -375,7 +277,7 @@ app.get('/orders/:id', async (req, res) => {
  * @swagger
  * /payouts:
  *   post:
- *     summary: Create a payout
+ *     summary: Create a payout record
  *     requestBody:
  *       required: true
  *       content:
@@ -388,22 +290,10 @@ app.get('/orders/:id', async (req, res) => {
  *               amount: { type: number }
  *               type: { type: string }
  *     responses:
- *       201:
- *         description: Payout created
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 id: { type: string }
- *                 recipient_id: { type: string }
- *                 order_id: { type: string }
- *                 amount: { type: number }
- *                 type: { type: string }
+ *       201: { description: Payout created }
  */
 app.post('/payouts', async (req, res) => {
-  const { recipient_id, order_id, amount, type } = req.body;
-  const payout = await models.createPayout({ recipient_id, order_id, amount, type });
+  const payout = await models.createPayout(req.body);
   res.status(201).json(payout);
 });
 
@@ -413,24 +303,10 @@ app.post('/payouts', async (req, res) => {
  *   get:
  *     summary: Get analytics logs
  *     responses:
- *       200:
- *         description: List of analytics logs
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 type: object
- *                 properties:
- *                   id: { type: string }
- *                   adLocation: { type: string }
- *                   format: { type: string }
- *                   clicks: { type: integer }
- *                   conversions: { type: integer }
+ *       200: { description: Array of analytics }
  *   post:
  *     summary: Log analytics data
  *     requestBody:
- *       required: true
  *       content:
  *         application/json:
  *           schema:
@@ -438,35 +314,138 @@ app.post('/payouts', async (req, res) => {
  *             properties:
  *               adLocation: { type: string }
  *               format: { type: string }
- *               clicks: { type: integer }
- *               conversions: { type: integer }
+ *               clicks: { type: number }
+ *               conversions: { type: number }
  *     responses:
- *       201:
- *         description: Analytics log created
+ *       201: { description: Analytics logged }
+ */
+app.get('/analytics', async (req, res) => {
+  const logs = await models.getAnalyticsLogs();
+  res.json(logs);
+});
+app.post('/analytics', async (req, res) => {
+  const log = await models.createAnalyticsLog(req.body);
+  res.status(201).json(log);
+});
+
+/**
+ * @swagger
+ * /qrcode/{campaignId}:
+ *   get:
+ *     summary: Get QR code image (PNG or SVG)
+ *     parameters:
+ *       - in: path
+ *         name: campaignId
+ *         required: true
+ *         schema: { type: string }
+ *       - in: query
+ *         name: format
+ *         schema: { type: string, enum: [png, svg] }
+ *         description: Image format
+ *     responses:
+ *       200:
+ *         description: QR code image
+ *         content:
+ *           image/png: {}
+ *           image/svg+xml: {}
+ */
+app.get('/qrcode/:campaignId', async (req, res) => {
+  const { campaignId } = req.params;
+  const { format } = req.query;
+  const campaign = await models.getCampaignById(campaignId);
+  if (!campaign) return res.status(404).end();
+  const targetUrl = `${BASE_URL}/w/${campaign.qr_code_identifier}`;
+  if (format === 'svg') {
+    const svg = QRCode.toString(targetUrl, { type: 'svg' });
+    res.set('Content-Type', 'image/svg+xml');
+    res.set('Content-Disposition', `attachment; filename="qr-${campaignId}.svg"`);
+    return res.send(svg);
+  }
+  const buffer = await QRCode.toBuffer(targetUrl);
+  res.set('Content-Type', 'image/png');
+  res.set('Content-Disposition', `attachment; filename="qr-${campaignId}.png"`);
+  res.send(buffer);
+});
+
+/**
+ * @swagger
+ * /w/{identifier}:
+ *   get:
+ *     summary: Short-link redirect to product page
+ *     parameters:
+ *       - in: path
+ *         name: identifier
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       302: { description: Redirecting to product page }
+ */
+app.get('/w/:identifier', async (req, res) => {
+  const campaign = await models.getCampaignByIdentifier(req.params.identifier);
+  if (!campaign) return res.status(404).end();
+  return res.redirect(`${FRONTEND_URL}/products/${campaign.product_id}`);
+});
+
+/**
+ * @swagger
+ * /embed/qr/{identifier}:
+ *   get:
+ *     summary: Get embeddable iframe snippet
+ *     parameters:
+ *       - in: path
+ *         name: identifier
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: JSON with embed code
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 id: { type: string }
- *                 adLocation: { type: string }
- *                 format: { type: string }
- *                 clicks: { type: integer }
- *                 conversions: { type: integer }
+ *                 embedCode: { type: string }
  */
-app.post('/analytics', async (req, res) => {
-  const { adLocation, format, clicks, conversions } = req.body;
-  const log = await models.createAnalyticsLog({ adLocation, format, clicks, conversions });
-  res.status(201).json(log);
+app.get('/embed/qr/:identifier', async (req, res) => {
+  const snippet = `<iframe src="${BASE_URL}/qrcode/${req.params.identifier}" width="150" height="150" frameborder="0"></iframe>`;
+  res.json({ embedCode: snippet });
 });
 
-app.get('/analytics', async (req, res) => {
-  const logs = await models.getAnalyticsLogs();
-  res.json(logs);
+/**
+ * @swagger
+ * /campaigns/{id}/generate-assets:
+ *   post:
+ *     summary: Generate all media assets for a campaign
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: All asset URLs and codes
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 qrPngUrl: { type: string }
+ *                 qrSvgUrl: { type: string }
+ *                 shortLink: { type: string }
+ *                 embedCode: { type: string }
+ */
+app.post('/campaigns/:id/generate-assets', async (req, res) => {
+  const campaign = await models.getCampaignById(req.params.id);
+  if (!campaign) return res.status(404).json({ error: 'Not found' });
+  const id = campaign.id;
+  const identifier = campaign.qr_code_identifier;
+  const qrPngUrl = `${BASE_URL}/qrcode/${id}?format=png`;
+  const qrSvgUrl = `${BASE_URL}/qrcode/${id}?format=svg`;
+  const shortLink = `${BASE_URL}/w/${identifier}`;
+  const embedCode = `<iframe src="${BASE_URL}/embed/qr/${identifier}" width="150" height="150"></iframe>`;
+  res.json({ qrPngUrl, qrSvgUrl, shortLink, embedCode });
 });
 
 // Start server
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
