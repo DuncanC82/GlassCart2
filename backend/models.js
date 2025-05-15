@@ -42,6 +42,11 @@ async function getAllOrders() {
   return res.rows;
 }
 
+async function getOrderById(id) {
+  const res = await pool.query('SELECT * FROM orders WHERE id = $1', [id]);
+  return res.rows[0];
+}
+
 async function createOrder({ customer_id, product_id, campaign_id, quantity, total_amount, commission_amount, shipping_address }) {
   const { v4: uuidv4 } = require('uuid');
   const id = uuidv4();
@@ -101,6 +106,7 @@ module.exports = {
   updateProduct,
   deleteProduct,
   getAllOrders,
+  getOrderById,
   createOrder,
   createCampaign,
   createPayout,
