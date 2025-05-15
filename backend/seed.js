@@ -9,67 +9,86 @@ const pool = new Pool({
 async function seed() {
   const client = await pool.connect();
   try {
-    // Create tables if they do not exist
+    // Drop all tables (in correct dependency order)
+    await client.query(`
+      DROP TABLE IF EXISTS analytics CASCADE;
+      DROP TABLE IF EXISTS payouts CASCADE;
+      DROP TABLE IF EXISTS orders CASCADE;
+      DROP TABLE IF EXISTS campaigns CASCADE;
+      DROP TABLE IF EXISTS products CASCADE;
+      DROP TABLE IF EXISTS users CASCADE;
+    `);
+
+    // Create tables with both created_at and time columns
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id UUID PRIMARY KEY,
         name TEXT NOT NULL,
         email TEXT NOT NULL,
-        role TEXT NOT NULL
+        role TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
       );
       CREATE TABLE IF NOT EXISTS products (
         id UUID PRIMARY KEY,
-        distributor_id UUID REFERENCES users(id),
+        distributor_id UUID,
         name TEXT NOT NULL,
         price NUMERIC NOT NULL,
         description TEXT,
         image_url TEXT,
-        stock_quantity INTEGER
+        stock_quantity INTEGER,
+        created_at TIMESTAMP DEFAULT NOW(),
+        FOREIGN KEY (distributor_id) REFERENCES users(id)
       );
       CREATE TABLE IF NOT EXISTS campaigns (
         id UUID PRIMARY KEY,
-        advertiser_id UUID REFERENCES users(id),
-        product_id UUID REFERENCES products(id),
+        advertiser_id UUID,
+        product_id UUID,
         campaign_name TEXT NOT NULL,
         start_date TIMESTAMP,
         end_date TIMESTAMP,
         qr_code_identifier TEXT,
         commission_percent INTEGER,
-        location TEXT
+        location TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        FOREIGN KEY (advertiser_id) REFERENCES users(id),
+        FOREIGN KEY (product_id) REFERENCES products(id)
       );
       CREATE TABLE IF NOT EXISTS orders (
         id UUID PRIMARY KEY,
-        customer_id UUID REFERENCES users(id),
-        product_id UUID REFERENCES products(id),
-        campaign_id UUID REFERENCES campaigns(id),
+        customer_id UUID,
+        product_id UUID,
+        campaign_id UUID,
         quantity INTEGER,
         total_amount NUMERIC,
         commission_amount NUMERIC,
-        shipping_address TEXT
+        shipping_address TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        time TIMESTAMP DEFAULT NOW(),
+        FOREIGN KEY (customer_id) REFERENCES users(id),
+        FOREIGN KEY (product_id) REFERENCES products(id),
+        FOREIGN KEY (campaign_id) REFERENCES campaigns(id)
       );
       CREATE TABLE IF NOT EXISTS payouts (
         id UUID PRIMARY KEY,
-        recipient_id UUID REFERENCES users(id),
-        order_id UUID REFERENCES orders(id),
+        recipient_id UUID,
+        order_id UUID,
         amount NUMERIC,
-        type TEXT
+        type TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        time TIMESTAMP DEFAULT NOW(),
+        FOREIGN KEY (recipient_id) REFERENCES users(id),
+        FOREIGN KEY (order_id) REFERENCES orders(id)
       );
       CREATE TABLE IF NOT EXISTS analytics (
         id UUID PRIMARY KEY,
         adlocation TEXT,
         format TEXT,
         clicks INTEGER,
-        conversions INTEGER
+        conversions INTEGER,
+        created_at TIMESTAMP DEFAULT NOW(),
+        time TIMESTAMP DEFAULT NOW()
       );
     `);
-
-    // Clear all tables
-    await client.query('DELETE FROM analytics');
-    await client.query('DELETE FROM payouts');
-    await client.query('DELETE FROM orders');
-    await client.query('DELETE FROM campaigns');
-    await client.query('DELETE FROM products');
-    await client.query('DELETE FROM users');
 
     // Create users
     const distributorId = uuidv4();

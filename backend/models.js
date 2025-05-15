@@ -1,5 +1,6 @@
 // models.js
 const { Pool } = require('pg');
+const { v4: uuidv4 } = require('uuid');
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
@@ -132,14 +133,14 @@ async function createPayout({ recipient_id, order_id, amount, type }) {
 // -------- Analytics --------
 async function createAnalyticsLog({ adLocation, format, clicks, conversions }) {
   const { rows } = await pool.query(
-    'INSERT INTO analytics(id,adLocation,format,clicks,conversions,time) VALUES($1,$2,$3,$4,$5,NOW()) RETURNING *',
+    'INSERT INTO analytics(id,adLocation,format,clicks,conversions,created_at) VALUES($1,$2,$3,$4,$5,NOW()) RETURNING *',
     [uuidv4(), adLocation, format, clicks, conversions]
   );
   return rows[0];
 }
 async function getAnalyticsLogs() {
-  const { rows } = await pool.query('SELECT * FROM analytics ORDER BY time DESC');
-  return rows;
+  const res = await pool.query('SELECT * FROM analytics ORDER BY created_at DESC');
+  return res.rows;
 }
 
 module.exports = {
