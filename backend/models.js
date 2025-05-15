@@ -70,6 +70,10 @@ async function getCampaignByIdentifier(identifier) {
   );
   return rows[0];
 }
+async function getAllCampaigns() {
+  const { rows } = await pool.query('SELECT * FROM campaigns ORDER BY created_at DESC');
+  return rows;
+}
 
 // -------- Order --------
 async function createOrder(fields) {
@@ -152,6 +156,7 @@ module.exports = {
   createCampaign,
   getCampaignById,
   getCampaignByIdentifier,
+  getAllCampaigns,
   createOrder,
   getAllOrders,
   getOrderById,

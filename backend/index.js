@@ -179,6 +179,17 @@ app.delete('/products/:id', async (req, res) => {
 /**
  * @swagger
  * /campaigns:
+ *   get:
+ *     summary: List all campaigns
+ *     responses:
+ *       200:
+ *         description: Array of campaigns
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
  *   post:
  *     summary: Create a new campaign
  *     requestBody:
@@ -200,9 +211,33 @@ app.delete('/products/:id', async (req, res) => {
  *     responses:
  *       201: { description: Campaign created }
  */
+app.get('/campaigns', async (req, res) => {
+  const campaigns = await models.getAllCampaigns();
+  res.json(campaigns);
+});
 app.post('/campaigns', async (req, res) => {
   const campaign = await models.createCampaign(req.body);
   res.status(201).json(campaign);
+});
+
+/**
+ * @swagger
+ * /campaigns/{id}:
+ *   get:
+ *     summary: Get campaign by ID
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema: { type: string }
+ *         required: true
+ *     responses:
+ *       200: { description: Campaign found }
+ *       404: { description: Not found }
+ */
+app.get('/campaigns/:id', async (req, res) => {
+  const campaign = await models.getCampaignById(req.params.id);
+  if (campaign) res.json(campaign);
+  else res.status(404).json({ error: 'Not found' });
 });
 
 /**
