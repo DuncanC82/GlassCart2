@@ -1,21 +1,30 @@
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const mongoose = require('mongoose');
+const { v4: uuidv4 } = require('uuid');
+const models = require('./models');
 const QRCode = require('qrcode');
-const { User, Product, Campaign, Order, Payout, Analytics } = require('./models');
+const swaggerUi = require('swagger-ui-express');
+const swaggerJsdoc = require('swagger-jsdoc');
 const app = express();
 
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
 
-// DB Connection
-mongoose.connect('mongodb://localhost:27017/glasscart', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-}).then(() => console.log('MongoDB Connected'))
-  .catch(err => console.error('DB Error:', err));
+// Swagger setup (optional, keep if you want Swagger docs)
+const swaggerSpec = swaggerJsdoc({
+  definition: {
+    openapi: '3.0.0',
+    info: {
+      title: 'GlassCart API',
+      version: '1.0.0',
+      description: 'Live API documentation for the QR-commerce platform'
+    }
+  },
+  apis: ['./index.js']
+});
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Base
 app.get('/', (req, res) => {
@@ -30,14 +39,13 @@ app.post('/generate-qr', async (req, res) => {
     const qr = await QRCode.toDataURL(url);
     res.json({ qrCode: qr });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ error: 'QR generation failed' });
   }
 });
 
 // Products
 app.get('/products', async (req, res) => {
-  const products = await Product.find().populate('distributor_id');
+  const products = await models.getAllProducts();
   res.json(products);
 });
 
@@ -46,8 +54,8 @@ app.post('/products', async (req, res) => {
   if (!distributor_id || !name || !price || !stock_quantity) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
-  const product = new Product({ distributor_id, name, price, description, image_url, stock_quantity });
-  await product.save();
+  const id = uuidv4();
+  const product = await models.createProduct({ id, distributor_id, name, price, description, image_url, stock_quantity });
   res.status(201).json(product);
 });
 
@@ -57,8 +65,7 @@ app.post('/campaigns', async (req, res) => {
   if (!advertiser_id || !product_id || !campaign_name || !qr_code_identifier) {
     return res.status(400).json({ error: 'Missing campaign data' });
   }
-  const campaign = new Campaign({ advertiser_id, product_id, campaign_name, start_date, end_date, qr_code_identifier, commission_percent, location });
-  await campaign.save();
+  const campaign = await models.createCampaign({ advertiser_id, product_id, campaign_name, start_date, end_date, qr_code_identifier, commission_percent, location });
   res.status(201).json(campaign);
 });
 
@@ -68,9 +75,19 @@ app.post('/orders', async (req, res) => {
   if (!customer_id || !product_id || !total_amount || !shipping_address) {
     return res.status(400).json({ error: 'Missing order data' });
   }
-  const order = new Order({ customer_id, product_id, campaign_id, quantity, total_amount, commission_amount, shipping_address });
-  await order.save();
+  const order = await models.createOrder({ customer_id, product_id, campaign_id, quantity, total_amount, commission_amount, shipping_address });
   res.status(201).json(order);
+});
+
+app.get('/orders', async (req, res) => {
+  const orders = await models.getAllOrders();
+  res.json(orders);
+});
+
+app.get('/orders/:id', async (req, res) => {
+  const order = await models.getOrderById(req.params.id);
+  if (order) res.json(order);
+  else res.status(404).json({ error: 'Not found' });
 });
 
 // Payouts
@@ -79,8 +96,7 @@ app.post('/payouts', async (req, res) => {
   if (!recipient_id || !order_id || !amount || !type) {
     return res.status(400).json({ error: 'Missing payout data' });
   }
-  const payout = new Payout({ recipient_id, order_id, amount, type });
-  await payout.save();
+  const payout = await models.createPayout({ recipient_id, order_id, amount, type });
   res.status(201).json(payout);
 });
 
@@ -88,16 +104,15 @@ app.post('/payouts', async (req, res) => {
 app.post('/analytics', async (req, res) => {
   const { adLocation, format, clicks, conversions } = req.body;
   if (!adLocation || !format) return res.status(400).json({ error: 'Ad location and format required' });
-  const log = new Analytics({ adLocation, format, clicks, conversions });
-  await log.save();
+  const log = await models.createAnalyticsLog({ adLocation, format, clicks, conversions });
   res.status(201).json(log);
 });
 
 app.get('/analytics', async (req, res) => {
-  const logs = await Analytics.find().sort({ time: -1 });
+  const logs = await models.getAnalyticsLogs();
   res.json(logs);
 });
 
 // Start
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));

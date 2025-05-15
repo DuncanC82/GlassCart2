@@ -1,6 +1,11 @@
 const mongoose = require('mongoose');
 const { v4: uuidv4 } = require('uuid');
+const { Pool } = require('pg');
 
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
 
 const userSchema = new mongoose.Schema({
   _id: { type: String, default: uuidv4 },
@@ -76,11 +81,94 @@ const Order = mongoose.model('Order', orderSchema);
 const Payout = mongoose.model('Payout', payoutSchema);
 const Analytics = mongoose.model('Analytics', analyticsSchema);
 
+// Products
+async function getAllProducts() {
+  const res = await pool.query('SELECT * FROM products');
+  return res.rows;
+}
+
+async function createProduct({ id, distributor_id, name, price, description, image_url, stock_quantity }) {
+  const res = await pool.query(
+    `INSERT INTO products (id, distributor_id, name, price, description, image_url, stock_quantity)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+    [id, distributor_id, name, price, description, image_url, stock_quantity]
+  );
+  return res.rows[0];
+}
+
+// Campaigns
+async function createCampaign({ advertiser_id, product_id, campaign_name, start_date, end_date, qr_code_identifier, commission_percent, location }) {
+  const id = uuidv4();
+  const res = await pool.query(
+    `INSERT INTO campaigns (id, advertiser_id, product_id, campaign_name, start_date, end_date, qr_code_identifier, commission_percent, location)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+    [id, advertiser_id, product_id, campaign_name, start_date, end_date, qr_code_identifier, commission_percent, location]
+  );
+  return res.rows[0];
+}
+
+// Orders
+async function createOrder({ customer_id, product_id, campaign_id, quantity, total_amount, commission_amount, shipping_address }) {
+  const id = uuidv4();
+  const res = await pool.query(
+    `INSERT INTO orders (id, customer_id, product_id, campaign_id, quantity, total_amount, commission_amount, shipping_address)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+    [id, customer_id, product_id, campaign_id, quantity, total_amount, commission_amount, shipping_address]
+  );
+  return res.rows[0];
+}
+
+async function getAllOrders() {
+  const res = await pool.query('SELECT * FROM orders');
+  return res.rows;
+}
+
+async function getOrderById(id) {
+  const res = await pool.query('SELECT * FROM orders WHERE id = $1', [id]);
+  return res.rows[0];
+}
+
+// Payouts
+async function createPayout({ recipient_id, order_id, amount, type }) {
+  const id = uuidv4();
+  const res = await pool.query(
+    `INSERT INTO payouts (id, recipient_id, order_id, amount, type)
+     VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+    [id, recipient_id, order_id, amount, type]
+  );
+  return res.rows[0];
+}
+
+// Analytics
+async function createAnalyticsLog({ adLocation, format, clicks, conversions }) {
+  const id = uuidv4();
+  const res = await pool.query(
+    `INSERT INTO analytics (id, adlocation, format, clicks, conversions)
+     VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+    [id, adLocation, format, clicks, conversions]
+  );
+  return res.rows[0];
+}
+
+async function getAnalyticsLogs() {
+  const res = await pool.query('SELECT * FROM analytics');
+  return res.rows;
+}
+
 module.exports = {
   User,
   Product,
   Campaign,
   Order,
   Payout,
-  Analytics
+  Analytics,
+  getAllProducts,
+  createProduct,
+  createCampaign,
+  createOrder,
+  getAllOrders,
+  getOrderById,
+  createPayout,
+  createAnalyticsLog,
+  getAnalyticsLogs
 };
