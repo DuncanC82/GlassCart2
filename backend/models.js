@@ -1,173 +1,161 @@
-const mongoose = require('mongoose');
-const { v4: uuidv4 } = require('uuid');
+// models.js
 const { Pool } = require('pg');
-
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
 
-const userSchema = new mongoose.Schema({
-  _id: { type: String, default: uuidv4 },
-  name: { type: String, required: true },
-  email: { type: String, required: true, unique: true },
-  role: { type: String, enum: ['customer', 'advertiser', 'distributor', 'admin'], required: true },
-  created_at: { type: Date, default: Date.now }
-});
-
-const productSchema = new mongoose.Schema({
-  _id: { type: String, default: uuidv4 },
-  distributor_id: { type: String, ref: 'User', required: true },
-  name: { type: String, required: true },
-  description: String,
-  price: { type: Number, required: true },
-  stock_quantity: { type: Number, required: true },
-  image_url: String,
-  is_active: { type: Boolean, default: true },
-  created_at: { type: Date, default: Date.now }
-});
-
-const campaignSchema = new mongoose.Schema({
-  _id: { type: String, default: uuidv4 },
-  advertiser_id: { type: String, ref: 'User', required: true },
-  product_id: { type: String, ref: 'Product', required: true },
-  campaign_name: { type: String, required: true },
-  start_date: Date,
-  end_date: Date,
-  qr_code_identifier: { type: String, unique: true },
-  commission_percent: { type: Number, default: 10 },
-  location: String
-});
-
-const orderSchema = new mongoose.Schema({
-  _id: { type: String, default: uuidv4 },
-  customer_id: { type: String, ref: 'User', required: true },
-  product_id: { type: String, ref: 'Product', required: true },
-  campaign_id: { type: String, ref: 'Campaign' },
-  quantity: { type: Number, default: 1 },
-  total_amount: { type: Number, required: true },
-  commission_amount: Number,
-  status: {
-    type: String,
-    enum: ['pending', 'shipped', 'delivered', 'cancelled', 'refunded'],
-    default: 'pending'
-  },
-  shipping_address: { type: String, required: true },
-  created_at: { type: Date, default: Date.now }
-});
-
-const payoutSchema = new mongoose.Schema({
-  _id: { type: String, default: uuidv4 },
-  recipient_id: { type: String, ref: 'User', required: true },
-  order_id: { type: String, ref: 'Order', required: true },
-  amount: { type: Number, required: true },
-  type: { type: String, enum: ['advertiser_commission', 'distributor_revenue'], required: true },
-  status: { type: String, enum: ['pending', 'paid'], default: 'pending' },
-  created_at: { type: Date, default: Date.now }
-});
-
-const analyticsSchema = new mongoose.Schema({
-  adLocation: { type: String, required: true },
-  format: { type: String, required: true },
-  time: { type: Date, default: Date.now },
-  clicks: { type: Number, default: 0 },
-  conversions: { type: Number, default: 0 }
-});
-
-const User = mongoose.model('User', userSchema);
-const Product = mongoose.model('Product', productSchema);
-const Campaign = mongoose.model('Campaign', campaignSchema);
-const Order = mongoose.model('Order', orderSchema);
-const Payout = mongoose.model('Payout', payoutSchema);
-const Analytics = mongoose.model('Analytics', analyticsSchema);
-
-// Products
+// -------- Product --------
 async function getAllProducts() {
-  const res = await pool.query('SELECT * FROM products');
-  return res.rows;
+  const { rows } = await pool.query('SELECT * FROM products ORDER BY created_at DESC');
+  return rows;
 }
-
-async function createProduct({ id, distributor_id, name, price, description, image_url, stock_quantity }) {
-  const res = await pool.query(
-    `INSERT INTO products (id, distributor_id, name, price, description, image_url, stock_quantity)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-    [id, distributor_id, name, price, description, image_url, stock_quantity]
+async function getProductById(id) {
+  const { rows } = await pool.query('SELECT * FROM products WHERE id=$1', [id]);
+  return rows[0];
+}
+async function createProduct({ id, name, price }) {
+  const { rows } = await pool.query(
+    'INSERT INTO products(id,name,price,created_at) VALUES($1,$2,$3,NOW()) RETURNING *',
+    [id, name, price]
   );
-  return res.rows[0];
+  return rows[0];
 }
-
-// Campaigns
-async function createCampaign({ advertiser_id, product_id, campaign_name, start_date, end_date, qr_code_identifier, commission_percent, location }) {
-  const id = uuidv4();
-  const res = await pool.query(
-    `INSERT INTO campaigns (id, advertiser_id, product_id, campaign_name, start_date, end_date, qr_code_identifier, commission_percent, location)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-    [id, advertiser_id, product_id, campaign_name, start_date, end_date, qr_code_identifier, commission_percent, location]
+async function updateProduct(id, { name, price }) {
+  const { rows } = await pool.query(
+    'UPDATE products SET name=$2, price=$3 WHERE id=$1 RETURNING *',
+    [id, name, price]
   );
-  return res.rows[0];
+  return rows[0];
+}
+async function deleteProduct(id) {
+  await pool.query('DELETE FROM products WHERE id=$1', [id]);
 }
 
-// Orders
-async function createOrder({ customer_id, product_id, campaign_id, quantity, total_amount, commission_amount, shipping_address }) {
-  const id = uuidv4();
-  const res = await pool.query(
-    `INSERT INTO orders (id, customer_id, product_id, campaign_id, quantity, total_amount, commission_amount, shipping_address)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-    [id, customer_id, product_id, campaign_id, quantity, total_amount, commission_amount, shipping_address]
+// -------- Campaign --------
+async function createCampaign(fields) {
+  const cols = [
+    'id','advertiser_id','product_id','campaign_name',
+    'start_date','end_date','qr_code_identifier',
+    'commission_percent','location'
+  ];
+  const vals = [
+    uuidv4(),
+    fields.advertiser_id,
+    fields.product_id,
+    fields.campaign_name,
+    fields.start_date,
+    fields.end_date,
+    fields.qr_code_identifier,
+    fields.commission_percent,
+    fields.location
+  ];
+  const { rows } = await pool.query(
+    `INSERT INTO campaigns(${cols.join(',')})
+     VALUES(${cols.map((_,i)=>`$${i+1}`).join(',')})
+     RETURNING *`,
+    vals
   );
-  return res.rows[0];
+  return rows[0];
+}
+async function getCampaignById(id) {
+  const { rows } = await pool.query('SELECT * FROM campaigns WHERE id=$1', [id]);
+  return rows[0];
+}
+async function getCampaignByIdentifier(identifier) {
+  const { rows } = await pool.query(
+    'SELECT * FROM campaigns WHERE qr_code_identifier=$1',
+    [identifier]
+  );
+  return rows[0];
 }
 
+// -------- Order --------
+async function createOrder(fields) {
+  const cols = [
+    'id','customer_id','product_id','campaign_id',
+    'quantity','total_amount','commission_amount','shipping_address','created_at'
+  ];
+  const vals = [
+    uuidv4(),
+    fields.customer_id,
+    fields.product_id,
+    fields.campaign_id,
+    fields.quantity,
+    fields.total_amount,
+    fields.commission_amount,
+    fields.shipping_address
+  ];
+  const { rows } = await pool.query(
+    `INSERT INTO orders(${cols.join(',')})
+     VALUES(${cols.map((_,i)=>`$${i+1}`).join(',')} , NOW())
+     RETURNING *`,
+    vals
+  );
+  return rows[0];
+}
 async function getAllOrders() {
-  const res = await pool.query('SELECT * FROM orders');
-  return res.rows;
+  const { rows } = await pool.query('SELECT * FROM orders ORDER BY created_at DESC');
+  return rows;
 }
-
 async function getOrderById(id) {
-  const res = await pool.query('SELECT * FROM orders WHERE id = $1', [id]);
-  return res.rows[0];
+  const { rows } = await pool.query('SELECT * FROM orders WHERE id=$1', [id]);
+  return rows[0];
+}
+async function getOrdersByCustomer(customer_id) {
+  const { rows } = await pool.query(
+    'SELECT * FROM orders WHERE customer_id=$1 ORDER BY created_at DESC',
+    [customer_id]
+  );
+  return rows;
+}
+async function getOrdersByDistributor(distributor_id) {
+  const { rows } = await pool.query(`
+    SELECT o.*
+      FROM orders o
+      JOIN products p ON o.product_id=p.id
+     WHERE p.distributor_id=$1
+     ORDER BY o.created_at DESC
+  `, [distributor_id]);
+  return rows;
 }
 
-// Payouts
+// -------- Payout --------
 async function createPayout({ recipient_id, order_id, amount, type }) {
-  const id = uuidv4();
-  const res = await pool.query(
-    `INSERT INTO payouts (id, recipient_id, order_id, amount, type)
-     VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-    [id, recipient_id, order_id, amount, type]
+  const { rows } = await pool.query(
+    'INSERT INTO payouts(id,recipient_id,order_id,amount,type,created_at) VALUES($1,$2,$3,$4,$5,NOW()) RETURNING *',
+    [uuidv4(), recipient_id, order_id, amount, type]
   );
-  return res.rows[0];
+  return rows[0];
 }
 
-// Analytics
+// -------- Analytics --------
 async function createAnalyticsLog({ adLocation, format, clicks, conversions }) {
-  const id = uuidv4();
-  const res = await pool.query(
-    `INSERT INTO analytics (id, adlocation, format, clicks, conversions)
-     VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-    [id, adLocation, format, clicks, conversions]
+  const { rows } = await pool.query(
+    'INSERT INTO analytics(id,adLocation,format,clicks,conversions,time) VALUES($1,$2,$3,$4,$5,NOW()) RETURNING *',
+    [uuidv4(), adLocation, format, clicks, conversions]
   );
-  return res.rows[0];
+  return rows[0];
 }
-
 async function getAnalyticsLogs() {
-  const res = await pool.query('SELECT * FROM analytics');
-  return res.rows;
+  const { rows } = await pool.query('SELECT * FROM analytics ORDER BY time DESC');
+  return rows;
 }
 
 module.exports = {
-  User,
-  Product,
-  Campaign,
-  Order,
-  Payout,
-  Analytics,
   getAllProducts,
+  getProductById,
   createProduct,
+  updateProduct,
+  deleteProduct,
   createCampaign,
+  getCampaignById,
+  getCampaignByIdentifier,
   createOrder,
   getAllOrders,
   getOrderById,
+  getOrdersByCustomer,
+  getOrdersByDistributor,
   createPayout,
   createAnalyticsLog,
   getAnalyticsLogs
