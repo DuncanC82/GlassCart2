@@ -1,4 +1,3 @@
-
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
@@ -232,6 +231,26 @@ app.post('/orders', async (req, res) => {
   const { customer_id, product_id, campaign_id, quantity, total_amount, commission_amount, shipping_address } = req.body;
   const order = await models.createOrder({ customer_id, product_id, campaign_id, quantity, total_amount, commission_amount, shipping_address });
   res.status(201).json(order);
+});
+
+/**
+ * @swagger
+ * /orders:
+ *   get:
+ *     summary: Get all orders
+ *     responses:
+ *       200:
+ *         description: List of orders
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ */
+app.get('/orders', async (req, res) => {
+  const orders = await models.getAllOrders();
+  res.json(orders);
 });
 
 /**
