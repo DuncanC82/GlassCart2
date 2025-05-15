@@ -390,16 +390,32 @@ app.get('/qrcode/:campaignId', async (req, res) => {
   const campaign = await models.getCampaignById(campaignId);
   if (!campaign) return res.status(404).end();
   const targetUrl = `${BASE_URL}/w/${campaign.qr_code_identifier}`;
+
   if (format === 'svg') {
-    const svg = QRCode.toString(targetUrl, { type: 'svg' });
-    res.set('Content-Type', 'image/svg+xml');
-    res.set('Content-Disposition', `attachment; filename="qr-${campaignId}.svg"`);
-    return res.send(svg);
+    try {
+      const svg = await QRCode.toString(targetUrl, { type: 'svg' });
+      res.set('Content-Type', 'image/svg+xml');
+      res.set('Content-Disposition', `attachment; filename="qr-${campaignId}.svg"`);
+      return res.send(svg);
+    } catch (err) {
+      res.status(500).send('SVG generation failed');
+    }
   }
-  const buffer = await QRCode.toBuffer(targetUrl);
-  res.set('Content-Type', 'image/png');
-  res.set('Content-Disposition', `attachment; filename="qr-${campaignId}.png"`);
-  res.send(buffer);
+
+  try {
+    const buffer = await QRCode.toBuffer(targetUrl, {
+      type: 'png',
+      color: {
+        dark: '#000000',
+        light: '#00000000' // transparent background
+      }
+    });
+    res.set('Content-Type', 'image/png');
+    res.set('Content-Disposition', `attachment; filename="qr-${campaignId}.png"`);
+    res.send(buffer);
+  } catch (err) {
+    res.status(500).send('PNG generation failed');
+  }
 });
 
 /**
