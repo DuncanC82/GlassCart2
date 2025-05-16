@@ -147,6 +147,72 @@ async function getAnalyticsLogs() {
   return res.rows;
 }
 
+// -------- Scan Events --------
+async function createScan({
+  campaign_id,
+  scanned_at,
+  lat,
+  lon,
+  city,
+  suburb,
+  region,
+  weather,
+  distance_to_store_m,
+  nearest_poi,
+  distance_to_poi_m,
+  user_agent
+}) {
+  const { rows } = await pool.query(
+    `INSERT INTO scans (
+      id, campaign_id, scanned_at, lat, lon, city, suburb, region, weather,
+      distance_to_store_m, nearest_poi, distance_to_poi_m, user_agent
+    ) VALUES (
+      $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13
+    ) RETURNING *`,
+    [
+      uuidv4(),
+      campaign_id,
+      scanned_at,
+      lat,
+      lon,
+      city,
+      suburb,
+      region,
+      weather ? JSON.stringify(weather) : null,
+      distance_to_store_m,
+      nearest_poi,
+      distance_to_poi_m,
+      user_agent
+    ]
+  );
+  return rows[0];
+}
+
+// Example: get scan summary by city
+async function getScanSummaryByCity() {
+  const { rows } = await pool.query(
+    `SELECT city, COUNT(*) AS scan_count
+     FROM scans
+     GROUP BY city
+     ORDER BY scan_count DESC`
+  );
+  return rows;
+}
+async function getScanSummaryByCampaign(campaignId) {
+  const { rows } = await pool.query(
+    `SELECT
+        COUNT(*) AS scan_count,
+        MIN(scanned_at) AS first_scan,
+        MAX(scanned_at) AS last_scan,
+        ARRAY_AGG(DISTINCT city) AS cities,
+        ARRAY_AGG(DISTINCT region) AS regions
+     FROM scans
+     WHERE campaign_id = $1`,
+    [campaignId]
+  );
+  return rows[0];
+}
+
 module.exports = {
   getAllProducts,
   getProductById,
@@ -164,5 +230,8 @@ module.exports = {
   getOrdersByDistributor,
   createPayout,
   createAnalyticsLog,
-  getAnalyticsLogs
+  getAnalyticsLogs,
+  createScan,
+  getScanSummaryByCity,
+  getScanSummaryByCampaign
 };

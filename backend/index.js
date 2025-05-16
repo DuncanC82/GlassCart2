@@ -7,6 +7,7 @@ const models = require('./models');
 const QRCode = require('qrcode');
 const swaggerUi = require('swagger-ui-express');
 const swaggerJsdoc = require('swagger-jsdoc');
+const fetch = require('node-fetch'); // Add at the top if not already
 
 const app = express();
 const BASE_URL = process.env.BASE_URL || 'https://glasscart2.onrender.com';
@@ -361,6 +362,127 @@ app.get('/analytics', async (req, res) => {
 app.post('/analytics', async (req, res) => {
   const log = await models.createAnalyticsLog(req.body);
   res.status(201).json(log);
+});
+
+/**
+ * @swagger
+ * /analytics/scan:
+ *   post:
+ *     summary: Record a QR scan event with geolocation and context
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [campaign_id, scanned_at, coords]
+ *             properties:
+ *               campaign_id: { type: string }
+ *               scanned_at: { type: string, format: date-time }
+ *               coords:
+ *                 type: object
+ *                 properties:
+ *                   lat: { type: number }
+ *                   lon: { type: number }
+ *               city: { type: string }
+ *               suburb: { type: string }
+ *               region: { type: string }
+ *               weather: { type: object }
+ *               distance_to_store_m: { type: integer }
+ *               nearest_poi: { type: string }
+ *               distance_to_poi_m: { type: integer }
+ *               user_agent: { type: string }
+ *     responses:
+ *       201: { description: Scan event recorded }
+ */
+app.post('/analytics/scan', async (req, res) => {
+  let {
+    campaign_id,
+    scanned_at,
+    coords,
+    city,
+    suburb,
+    region,
+    weather,
+    distance_to_store_m,
+    nearest_poi,
+    distance_to_poi_m,
+    user_agent
+  } = req.body;
+
+  if (!campaign_id || !scanned_at || !coords || typeof coords.lat !== 'number' || typeof coords.lon !== 'number') {
+    return res.status(400).json({ error: 'Missing required scan data' });
+  }
+
+  // Reverse geocode if city/suburb/region not provided
+  if (!city || !suburb || !region) {
+    try {
+      const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords.lat}&lon=${coords.lon}&zoom=18&addressdetails=1`;
+      const geoRes = await fetch(url, {
+        headers: { 'User-Agent': 'GlassCart/1.0 (contact@glasscart.com)' }
+      });
+      const geoData = await geoRes.json();
+      if (geoData.address) {
+        city = city || geoData.address.city || geoData.address.town || geoData.address.village || null;
+        suburb = suburb || geoData.address.suburb || geoData.address.neighbourhood || null;
+        region = region || geoData.address.state || geoData.address.region || null;
+      }
+    } catch (err) {
+      // If reverse geocoding fails, continue without it
+    }
+  }
+
+  const scan = await models.createScan({
+    campaign_id,
+    scanned_at,
+    lat: coords.lat,
+    lon: coords.lon,
+    city,
+    suburb,
+    region,
+    weather,
+    distance_to_store_m,
+    nearest_poi,
+    distance_to_poi_m,
+    user_agent: user_agent || req.headers['user-agent']
+  });
+
+  res.status(201).json(scan);
+});
+
+// Example summary endpoint
+/**
+ * @swagger
+ * /analytics/scans/summary/city:
+ *   get:
+ *     summary: Get scan counts grouped by city
+ *     responses:
+ *       200:
+ *         description: Scan summary by city
+ */
+app.get('/analytics/scans/summary/city', async (req, res) => {
+  const summary = await models.getScanSummaryByCity();
+  res.json(summary);
+});
+
+/**
+ * @swagger
+ * /analytics/scans/summary/campaign/{campaignId}:
+ *   get:
+ *     summary: Get scan analytics for a specific campaign
+ *     parameters:
+ *       - in: path
+ *         name: campaignId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Scan analytics for the campaign
+ */
+app.get('/analytics/scans/summary/campaign/:campaignId', async (req, res) => {
+  const campaignId = req.params.campaignId;
+  const summary = await models.getScanSummaryByCampaign(campaignId);
+  res.json(summary);
 });
 
 /**

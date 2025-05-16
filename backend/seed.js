@@ -17,6 +17,7 @@ async function seed() {
       DROP TABLE IF EXISTS campaigns CASCADE;
       DROP TABLE IF EXISTS products CASCADE;
       DROP TABLE IF EXISTS users CASCADE;
+      DROP TABLE IF EXISTS scans CASCADE;
     `);
 
     // Create tables with both created_at and time columns
@@ -87,6 +88,21 @@ async function seed() {
         conversions INTEGER,
         created_at TIMESTAMP DEFAULT NOW(),
         time TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS scans (
+        id UUID PRIMARY KEY,
+        campaign_id UUID REFERENCES campaigns(id),
+        scanned_at TIMESTAMPTZ NOT NULL,
+        lat NUMERIC NOT NULL,
+        lon NUMERIC NOT NULL,
+        city TEXT,
+        suburb TEXT,
+        region TEXT,
+        weather JSONB,
+        distance_to_store_m INT,
+        nearest_poi TEXT,
+        distance_to_poi_m INT,
+        user_agent TEXT
       );
     `);
 
