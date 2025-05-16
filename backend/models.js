@@ -191,7 +191,11 @@ async function createScan({
 // Example: get scan summary by city
 async function getScanSummaryByCity() {
   const { rows } = await pool.query(
-    `SELECT city, COUNT(*) AS scan_count
+    `SELECT
+        city,
+        AVG(lat)::float AS lat,
+        AVG(lon)::float AS lon,
+        COUNT(*) AS scan_count
      FROM scans
      GROUP BY city
      ORDER BY scan_count DESC`

@@ -84,13 +84,30 @@ app.post('/generate-qr', async (req, res) => {
 
 /**
  * @swagger
+ * tags:
+ *   - name: Products
+ *     description: Product management
+ *   - name: Campaigns
+ *     description: Campaign management
+ *   - name: Orders
+ *     description: Order management
+ *   - name: Payouts
+ *     description: Payout management
+ *   - name: Analytics
+ *     description: Analytics and QR scan tracking
+ */
+
+/**
+ * @swagger
  * /products:
  *   get:
+ *     tags: [Products]
  *     summary: List all products
  *     responses:
  *       200:
  *         description: Array of products
  *   post:
+ *     tags: [Products]
  *     summary: Create a new product
  *     requestBody:
  *       required: true
@@ -122,6 +139,7 @@ app.post('/products', async (req, res) => {
  * @swagger
  * /products/{id}:
  *   get:
+ *     tags: [Products]
  *     summary: Get product by ID
  *     parameters:
  *       - in: path
@@ -132,6 +150,7 @@ app.post('/products', async (req, res) => {
  *       200: { description: Product found }
  *       404: { description: Not found }
  *   put:
+ *     tags: [Products]
  *     summary: Update a product
  *     parameters:
  *       - in: path
@@ -150,6 +169,7 @@ app.post('/products', async (req, res) => {
  *       200: { description: Product updated }
  *       404: { description: Not found }
  *   delete:
+ *     tags: [Products]
  *     summary: Delete a product
  *     parameters:
  *       - in: path
@@ -181,6 +201,7 @@ app.delete('/products/:id', async (req, res) => {
  * @swagger
  * /campaigns:
  *   get:
+ *     tags: [Campaigns]
  *     summary: List all campaigns
  *     responses:
  *       200:
@@ -192,6 +213,7 @@ app.delete('/products/:id', async (req, res) => {
  *               items:
  *                 type: object
  *   post:
+ *     tags: [Campaigns]
  *     summary: Create a new campaign
  *     requestBody:
  *       required: true
@@ -245,6 +267,7 @@ app.get('/campaigns/:id', async (req, res) => {
  * @swagger
  * /orders:
  *   get:
+ *     tags: [Orders]
  *     summary: List orders
  *     parameters:
  *       - in: query
@@ -256,6 +279,7 @@ app.get('/campaigns/:id', async (req, res) => {
  *     responses:
  *       200: { description: Array of orders }
  *   post:
+ *     tags: [Orders]
  *     summary: Create a new order
  *     requestBody:
  *       required: true
@@ -313,6 +337,7 @@ app.get('/orders/:id', async (req, res) => {
  * @swagger
  * /payouts:
  *   post:
+ *     tags: [Payouts]
  *     summary: Create a payout record
  *     requestBody:
  *       required: true
@@ -337,10 +362,12 @@ app.post('/payouts', async (req, res) => {
  * @swagger
  * /analytics:
  *   get:
+ *     tags: [Analytics]
  *     summary: Get analytics logs
  *     responses:
  *       200: { description: Array of analytics }
  *   post:
+ *     tags: [Analytics]
  *     summary: Log analytics data
  *     requestBody:
  *       content:
@@ -368,6 +395,7 @@ app.post('/analytics', async (req, res) => {
  * @swagger
  * /analytics/scan:
  *   post:
+ *     tags: [Analytics]
  *     summary: Record a QR scan event with geolocation and context
  *     requestBody:
  *       required: true
@@ -429,6 +457,27 @@ app.post('/analytics/scan', async (req, res) => {
       }
     } catch (err) {
       // If reverse geocoding fails, continue without it
+    }
+  }
+
+  // Weather enrichment using OpenWeatherMap API
+  if (!weather && coords.lat && coords.lon) {
+    try {
+      const weatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${coords.lat}&lon=${coords.lon}&appid=2cea4d95faa29aaba97825222561bbca&units=metric`;
+      const weatherRes = await fetch(weatherUrl);
+      if (weatherRes.ok) {
+        const weatherData = await weatherRes.json();
+        weather = {
+          temp: weatherData.main?.temp,
+          feels_like: weatherData.main?.feels_like,
+          humidity: weatherData.main?.humidity,
+          wind_speed: weatherData.wind?.speed,
+          condition: weatherData.weather?.[0]?.main,
+          description: weatherData.weather?.[0]?.description
+        };
+      }
+    } catch (err) {
+      // If weather API fails, continue without it
     }
   }
 
