@@ -95,6 +95,8 @@ app.post('/generate-qr', async (req, res) => {
  *     description: Payout management
  *   - name: Analytics
  *     description: Analytics and QR scan tracking
+ *   - name: QR
+ *     description: QR code and embed endpoints
  */
 
 /**
@@ -247,6 +249,7 @@ app.post('/campaigns', async (req, res) => {
  * @swagger
  * /campaigns/{id}:
  *   get:
+ *     tags: [Campaigns]
  *     summary: Get campaign by ID
  *     parameters:
  *       - in: path
@@ -317,6 +320,7 @@ app.post('/orders', async (req, res) => {
  * @swagger
  * /orders/{id}:
  *   get:
+ *     tags: [Orders]
  *     summary: Get order by ID
  *     parameters:
  *       - in: path
@@ -504,6 +508,7 @@ app.post('/analytics/scan', async (req, res) => {
  * @swagger
  * /analytics/scans/summary/city:
  *   get:
+ *     tags: [Analytics]
  *     summary: Get scan counts grouped by city
  *     responses:
  *       200:
@@ -518,6 +523,7 @@ app.get('/analytics/scans/summary/city', async (req, res) => {
  * @swagger
  * /analytics/scans/summary/campaign/{campaignId}:
  *   get:
+ *     tags: [Analytics]
  *     summary: Get scan analytics for a specific campaign
  *     parameters:
  *       - in: path
@@ -538,6 +544,7 @@ app.get('/analytics/scans/summary/campaign/:campaignId', async (req, res) => {
  * @swagger
  * /qrcode/{campaignId}:
  *   get:
+ *     tags: [QR]
  *     summary: Get QR code image (PNG or SVG)
  *     parameters:
  *       - in: path
@@ -593,6 +600,7 @@ app.get('/qrcode/:campaignId', async (req, res) => {
  * @swagger
  * /w/{identifier}:
  *   get:
+ *     tags: [QR]
  *     summary: Short-link redirect to product page
  *     parameters:
  *       - in: path
@@ -612,6 +620,7 @@ app.get('/w/:identifier', async (req, res) => {
  * @swagger
  * /embed/qr/{identifier}:
  *   get:
+ *     tags: [QR]
  *     summary: Get embeddable iframe snippet
  *     parameters:
  *       - in: path
@@ -637,6 +646,7 @@ app.get('/embed/qr/:identifier', async (req, res) => {
  * @swagger
  * /campaigns/{id}/generate-assets:
  *   post:
+ *     tags: [QR]
  *     summary: Generate all media assets for a campaign
  *     parameters:
  *       - in: path
