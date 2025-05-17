@@ -160,14 +160,19 @@ async function createScan({
   distance_to_store_m,
   nearest_poi,
   distance_to_poi_m,
-  user_agent
+  user_agent,
+  converted_order_id = null, // new: link to order if scan led to conversion
+  device_type = null,        // new: browser/mobile/desktop
+  referrer = null,           // new: where did the scan come from (if available)
+  scan_source = null         // new: e.g. QR, NFC, shortlink, etc
 }) {
   const { rows } = await pool.query(
     `INSERT INTO scans (
       id, campaign_id, scanned_at, lat, lon, city, suburb, region, weather,
-      distance_to_store_m, nearest_poi, distance_to_poi_m, user_agent
+      distance_to_store_m, nearest_poi, distance_to_poi_m, user_agent,
+      converted_order_id, device_type, referrer, scan_source
     ) VALUES (
-      $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13
+      $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17
     ) RETURNING *`,
     [
       uuidv4(),
@@ -182,10 +187,43 @@ async function createScan({
       distance_to_store_m,
       nearest_poi,
       distance_to_poi_m,
-      user_agent
+      user_agent,
+      converted_order_id,
+      device_type,
+      referrer,
+      scan_source
     ]
   );
   return rows[0];
+}
+
+// Return all scan metadata for a campaign (not a summary)
+async function getScansByCampaign(campaignId) {
+  const { rows } = await pool.query(
+    `SELECT
+        id,
+        campaign_id,
+        scanned_at,
+        lat,
+        lon,
+        city,
+        suburb,
+        region,
+        weather,
+        distance_to_store_m,
+        nearest_poi,
+        distance_to_poi_m,
+        user_agent,
+        converted_order_id,
+        device_type,
+        referrer,
+        scan_source
+     FROM scans
+     WHERE campaign_id = $1
+     ORDER BY scanned_at DESC`,
+    [campaignId]
+  );
+  return rows;
 }
 
 // Example: get scan summary by city
@@ -202,14 +240,30 @@ async function getScanSummaryByCity() {
   );
   return rows;
 }
+// Enriched scan summary by campaign
 async function getScanSummaryByCampaign(campaignId) {
   const { rows } = await pool.query(
     `SELECT
         COUNT(*) AS scan_count,
+        COUNT(converted_order_id) AS conversions,
         MIN(scanned_at) AS first_scan,
         MAX(scanned_at) AS last_scan,
         ARRAY_AGG(DISTINCT city) AS cities,
-        ARRAY_AGG(DISTINCT region) AS regions
+        ARRAY_AGG(DISTINCT region) AS regions,
+        AVG(lat)::float AS avg_lat,
+        AVG(lon)::float AS avg_lon,
+        ARRAY_AGG(jsonb_build_object(
+          'lat', lat,
+          'lon', lon,
+          'city', city,
+          'suburb', suburb,
+          'region', region
+        )) AS geo_points,
+        ARRAY_AGG(DISTINCT device_type) AS device_types,
+        ARRAY_AGG(DISTINCT scan_source) AS scan_sources,
+        ARRAY_AGG(DISTINCT referrer) AS referrers,
+        AVG((weather->>'temp')::float) AS avg_temp,
+        ARRAY_AGG(DISTINCT weather->>'condition') AS weather_conditions
      FROM scans
      WHERE campaign_id = $1`,
     [campaignId]
@@ -237,5 +291,6 @@ module.exports = {
   getAnalyticsLogs,
   createScan,
   getScanSummaryByCity,
-  getScanSummaryByCampaign
+  getScanSummaryByCampaign,
+  getScansByCampaign
 };
