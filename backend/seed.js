@@ -37,12 +37,13 @@ async function seed() {
         description TEXT,
         image_url TEXT,
         stock_quantity INTEGER NOT NULL,
+        product_url TEXT,
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
 
       CREATE TABLE campaigns (
         id UUID PRIMARY KEY,
-        advertiser_id UUID REFERENCES users(id),
+        retailer_id UUID REFERENCES users(id),
         product_id   UUID REFERENCES products(id),
         campaign_name TEXT NOT NULL,
         start_date    TIMESTAMPTZ,
@@ -228,16 +229,16 @@ async function seed() {
 
     for (const p of products) {
       await client.query(
-        `INSERT INTO products(id,distributor_id,name,price,description,image_url,stock_quantity)
-         VALUES($1,$2,$3,$4,$5,$6,$7)`,
-        [p.id,p.distributor_id,p.name,p.price,p.description,p.image_url,p.stock_quantity]
+        `INSERT INTO products(id,distributor_id,name,price,description,image_url,stock_quantity,product_url)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
+        [p.id,p.distributor_id,p.name,p.price,p.description,p.image_url,p.stock_quantity,p.product_url]
       );
     }
 
     console.log('▶️ Seeding campaigns…');
     const campaigns = [
       {
-        advertiser_id: users[1].id, // Sample Distributor as campaign owner for demo
+        retailer_id: users[0].id, // Kathmandu as retailer
         product_id:    products[0].id,
         campaign_name: 'Hybrid Trolley v5 - Black Stingray QR',
         start_date:    new Date('2025-06-01T00:00Z'),
@@ -248,7 +249,7 @@ async function seed() {
         campaign_url:  products[0].product_url
       },
       {
-        advertiser_id: users[1].id,
+        retailer_id: users[0].id,
         product_id:    products[1].id,
         campaign_name: 'Hybrid Trolley v5 - Pure Navy QR',
         start_date:    new Date('2025-06-01T00:00Z'),
@@ -259,7 +260,7 @@ async function seed() {
         campaign_url:  products[1].product_url
       },
       {
-        advertiser_id: users[1].id,
+        retailer_id: users[0].id,
         product_id:    products[2].id,
         campaign_name: "Women's Andulo Rain Jacket QR",
         start_date:    new Date('2025-06-01T00:00Z'),
@@ -270,7 +271,7 @@ async function seed() {
         campaign_url:  products[2].product_url
       },
       {
-        advertiser_id: users[1].id,
+        retailer_id: users[0].id,
         product_id:    products[3].id,
         campaign_name: 'Cap Off Season Sale',
         start_date:    new Date('2025-08-01T00:00Z'),
@@ -284,12 +285,12 @@ async function seed() {
     for (const c of campaigns) {
       await client.query(
         `INSERT INTO campaigns(
-           id,advertiser_id,product_id,campaign_name,
+           id,retailer_id,product_id,campaign_name,
            start_date,end_date,qr_code_identifier,
            commission_percent,location
          ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
         [
-          c.id,c.advertiser_id,c.product_id,c.campaign_name,
+          c.id,c.retailer_id,c.product_id,c.campaign_name,
           c.start_date,c.end_date,c.qr_code_identifier,
           c.commission_percent,c.location
         ]
