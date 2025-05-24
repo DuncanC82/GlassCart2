@@ -241,8 +241,12 @@ app.get('/campaigns', async (req, res) => {
   res.json(campaigns);
 });
 app.post('/campaigns', async (req, res) => {
-  const campaign = await models.createCampaign(req.body);
-  res.status(201).json(campaign);
+  try {
+    const campaign = await models.createCampaign(req.body);
+    res.status(201).json(campaign);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 /**
