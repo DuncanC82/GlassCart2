@@ -7,7 +7,7 @@ const models = require('./models');
 const QRCode = require('qrcode');
 const swaggerUi = require('swagger-ui-express');
 const swaggerJsdoc = require('swagger-jsdoc');
-const fetch = require('node-fetch'); // Add at the top if not already
+const fetch = (...args) => import('node-fetch').then(mod => mod.default(...args)); // Fix for ESM
 
 const app = express();
 const BASE_URL = process.env.BASE_URL || 'https://glasscart2.onrender.com';
