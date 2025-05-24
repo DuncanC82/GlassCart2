@@ -223,9 +223,9 @@ app.delete('/products/:id', async (req, res) => {
  *         application/json:
  *           schema:
  *             type: object
- *             required: [advertiser_id, product_id, campaign_name, qr_code_identifier]
+ *             required: [retailer_id, product_id, campaign_name, qr_code_identifier]
  *             properties:
- *               advertiser_id: { type: string }
+ *               retailer_id: { type: string }
  *               product_id: { type: string }
  *               campaign_name: { type: string }
  *               start_date: { type: string, format: date-time }
