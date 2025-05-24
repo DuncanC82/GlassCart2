@@ -306,5 +306,6 @@ module.exports = {
   createScan,
   getScanSummaryByCity,
   getScanSummaryByCampaign,
-  getScansByCampaign
+  getScansByCampaign,
+  pool // Export the pool for use in index.js
 };
