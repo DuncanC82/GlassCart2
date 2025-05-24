@@ -36,13 +36,13 @@ async function deleteProduct(id) {
 // -------- Campaign --------
 async function createCampaign(fields) {
   const cols = [
-    'id','advertiser_id','product_id','campaign_name',
+    'id','retailer_id','product_id','campaign_name',
     'start_date','end_date','qr_code_identifier',
     'commission_percent','location'
   ];
   const vals = [
     uuidv4(),
-    fields.advertiser_id,
+    fields.retailer_id,
     fields.product_id,
     fields.campaign_name,
     fields.start_date,
@@ -57,7 +57,8 @@ async function createCampaign(fields) {
      RETURNING *`,
     vals
   );
-  return rows[0];
+  const { advertiser_id, ...rest } = rows[0]; // Exclude advertiser_id from the returned object
+  return rest;
 }
 async function getCampaignById(id) {
   const { rows } = await pool.query('SELECT * FROM campaigns WHERE id=$1', [id]);
