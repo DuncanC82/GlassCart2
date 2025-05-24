@@ -35,6 +35,13 @@ async function deleteProduct(id) {
 
 // -------- Campaign --------
 async function createCampaign(fields) {
+  // Validate required fields
+  const required = ['retailer_id','product_id','campaign_name','qr_code_identifier'];
+  for (const key of required) {
+    if (!fields[key]) {
+      throw new Error(`Missing required field: ${key}`);
+    }
+  }
   const cols = [
     'id','retailer_id','product_id','campaign_name',
     'start_date','end_date','qr_code_identifier',
@@ -51,14 +58,20 @@ async function createCampaign(fields) {
     fields.commission_percent,
     fields.location
   ];
-  const { rows } = await pool.query(
-    `INSERT INTO campaigns(${cols.join(',')})
-     VALUES(${cols.map((_,i)=>`$${i+1}`).join(',')})
-     RETURNING *`,
-    vals
-  );
-  const { advertiser_id, ...rest } = rows[0]; // Exclude advertiser_id from the returned object
-  return rest;
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO campaigns(${cols.join(',')})
+       VALUES(${cols.map((_,i)=>`$${i+1}`).join(',')})
+       RETURNING *`,
+      vals
+    );
+    return rows[0];
+  } catch (err) {
+    if (err.code === '23505' && err.constraint && err.constraint.includes('qr_code_identifier')) {
+      throw new Error('QR code identifier must be unique.');
+    }
+    throw new Error('Failed to create campaign: ' + err.message);
+  }
 }
 async function getCampaignById(id) {
   const { rows } = await pool.query('SELECT * FROM campaigns WHERE id=$1', [id]);
