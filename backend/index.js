@@ -97,6 +97,8 @@ app.post('/generate-qr', async (req, res) => {
  *     description: Analytics and QR scan tracking
  *   - name: QR
  *     description: QR code and embed endpoints
+ *   - name: Retailers
+ *     description: Retailer management
  */
 
 /**
@@ -680,6 +682,150 @@ app.post('/campaigns/:id/generate-assets', async (req, res) => {
   const shortLink = `${BASE_URL}/w/${identifier}`;
   const embedCode = `<iframe src="${BASE_URL}/embed/qr/${identifier}" width="150" height="150"></iframe>`;
   res.json({ qrPngUrl, qrSvgUrl, shortLink, embedCode });
+});
+
+/**
+ * @swagger
+ * /retailers:
+ *   get:
+ *     summary: Get all retailers
+ *     tags: [Retailers]
+ *     responses:
+ *       200:
+ *         description: List of retailers
+ */
+app.get('/retailers', async (req, res) => {
+  const { rows } = await pool.query("SELECT * FROM users WHERE role='retailer' ORDER BY created_at DESC");
+  res.json(rows);
+});
+
+/**
+ * @swagger
+ * /retailers/{id}:
+ *   get:
+ *     summary: Get retailer by ID
+ *     tags: [Retailers]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Retailer ID
+ *     responses:
+ *       200:
+ *         description: Retailer object
+ *       404:
+ *         description: Retailer not found
+ */
+app.get('/retailers/:id', async (req, res) => {
+  const { rows } = await pool.query("SELECT * FROM users WHERE id=$1 AND role='retailer'", [req.params.id]);
+  if (rows.length === 0) return res.status(404).json({ error: 'Retailer not found' });
+  res.json(rows[0]);
+});
+
+/**
+ * @swagger
+ * /retailers:
+ *   post:
+ *     summary: Create a retailer
+ *     tags: [Retailers]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name, email]
+ *             properties:
+ *               name:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Retailer created
+ */
+app.post('/retailers', async (req, res) => {
+  const { name, email } = req.body;
+  if (!name || !email) return res.status(400).json({ error: 'Name and email are required' });
+  try {
+    const { rows } = await pool.query(
+      "INSERT INTO users(id, name, email, role) VALUES($1, $2, $3, 'retailer') RETURNING *",
+      [uuidv4(), name, email]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(400).json({ error: 'Email already exists' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * @swagger
+ * /retailers/{id}:
+ *   put:
+ *     summary: Update a retailer
+ *     tags: [Retailers]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Retailer ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Retailer updated
+ *       404:
+ *         description: Retailer not found
+ */
+app.put('/retailers/:id', async (req, res) => {
+  const { name, email } = req.body;
+  const { id } = req.params;
+  const { rows } = await pool.query(
+    "UPDATE users SET name=COALESCE($2,name), email=COALESCE($3,email) WHERE id=$1 AND role='retailer' RETURNING *",
+    [id, name, email]
+  );
+  if (rows.length === 0) return res.status(404).json({ error: 'Retailer not found' });
+  res.json(rows[0]);
+});
+
+/**
+ * @swagger
+ * /retailers/{id}:
+ *   delete:
+ *     summary: Delete a retailer
+ *     tags: [Retailers]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Retailer ID
+ *     responses:
+ *       204:
+ *         description: Retailer deleted
+ *       404:
+ *         description: Retailer not found
+ */
+app.delete('/retailers/:id', async (req, res) => {
+  const { id } = req.params;
+  const { rowCount } = await pool.query("DELETE FROM users WHERE id=$1 AND role='retailer'", [id]);
+  if (rowCount === 0) return res.status(404).json({ error: 'Retailer not found' });
+  res.status(204).send();
 });
 
 // Start server
