@@ -214,6 +214,15 @@ async function seed() {
         image_url: 'https://cdn.shopify.com/s/files/1/0919/0116/5858/files/a1130_100_kmdlogo_organic_cotton_tshirt_a_600x600.jpg?v=1744064620',
         stock_quantity: 180,
         product_url: 'https://www.kathmandu.co.nz/products/kmdlogo-organic-cotton-t-shirt-white'
+      },
+      {
+        distributor_id: users[0].id,
+        name: 'Straw Lid Insulated Bottle - 950 ml - Vanilla',
+        price: 59.98,
+        description: 'Double-walled insulated bottle with straw lid. Colour: Vanilla. Unisex. Member price: $41.99.',
+        image_url: 'https://cdn.shopify.com/s/files/1/0919/0116/5858/files/b1488_427_straw_lid_insulated_bottle_950ml_a_600x600.jpg?v=1747267944',
+        stock_quantity: 1753,
+        product_url: 'https://www.kathmandu.co.nz/products/straw-lid-insulated-bottle-950-ml-vanilla'
       }
     ].map(p => ({ id: uuidv4(), ...p }));
 
