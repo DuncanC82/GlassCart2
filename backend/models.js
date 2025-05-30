@@ -227,11 +227,7 @@ async function getScansByCampaign(campaignId) {
         distance_to_store_m,
         nearest_poi,
         distance_to_poi_m,
-        user_agent,
-        converted_order_id,
-        device_type,
-        referrer,
-        scan_source
+        user_agent
      FROM scans
      WHERE campaign_id = $1
      ORDER BY scanned_at DESC`,

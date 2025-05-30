@@ -531,7 +531,7 @@ app.get('/analytics/scans/summary/city', async (req, res) => {
  * /analytics/scans/summary/campaign/{campaignId}:
  *   get:
  *     tags: [Analytics]
- *     summary: Get scan analytics for a specific campaign
+ *     summary: Get all scans for a specific campaign
  *     parameters:
  *       - in: path
  *         name: campaignId
@@ -539,12 +539,50 @@ app.get('/analytics/scans/summary/city', async (req, res) => {
  *         schema: { type: string }
  *     responses:
  *       200:
- *         description: Scan analytics for the campaign
+ *         description: List of scans for the campaign
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   campaign_id: { type: string }
+ *                   scanned_at: { type: string, format: date-time }
+ *                   coords:
+ *                     type: object
+ *                     properties:
+ *                       lat: { type: number }
+ *                       lon: { type: number }
+ *                   city: { type: string }
+ *                   suburb: { type: string }
+ *                   region: { type: string }
+ *                   weather: { type: object }
+ *                   distance_to_store_m: { type: integer }
+ *                   nearest_poi: { type: string }
+ *                   distance_to_poi_m: { type: integer }
+ *                   user_agent: { type: string }
  */
 app.get('/analytics/scans/summary/campaign/:campaignId', async (req, res) => {
   const campaignId = req.params.campaignId;
-  const summary = await models.getScanSummaryByCampaign(campaignId);
-  res.json(summary);
+  const scans = await models.getScansByCampaign(campaignId);
+  const result = scans.map(scan => ({
+    campaign_id: scan.campaign_id,
+    scanned_at: scan.scanned_at,
+    coords: {
+      lat: parseFloat(scan.lat),
+      lon: parseFloat(scan.lon)
+    },
+    city: scan.city,
+    suburb: scan.suburb,
+    region: scan.region,
+    weather: scan.weather,
+    distance_to_store_m: scan.distance_to_store_m,
+    nearest_poi: scan.nearest_poi,
+    distance_to_poi_m: scan.distance_to_poi_m,
+    user_agent: scan.user_agent
+  }));
+  res.json(result);
 });
 
 /**
