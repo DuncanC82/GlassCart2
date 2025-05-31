@@ -93,7 +93,7 @@ async function getAllCampaigns() {
 async function createOrder(fields) {
   const cols = [
     'id','customer_id','product_id','campaign_id',
-    'quantity','total_amount','commission_amount','shipping_address','created_at'
+    'quantity','total_amount','commission_amount','shipping_address'
   ];
   const vals = [
     uuidv4(),
@@ -107,7 +107,7 @@ async function createOrder(fields) {
   ];
   const { rows } = await pool.query(
     `INSERT INTO orders(${cols.join(',')})
-     VALUES(${cols.map((_,i)=>`$${i+1}`).join(',')} , NOW())
+     VALUES(${cols.map((_,i)=>`$${i+1}`).join(',')})
      RETURNING *`,
     vals
   );
