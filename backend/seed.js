@@ -108,13 +108,13 @@ async function seed() {
 
     console.log('▶️ Seeding users…');
     const users = [
-      { name: 'Kathmandu', email: 'retailer@kathmandu.co.nz', role: 'retailer' },
-      { name: 'Sample Distributor', email: 'dist@sample.com', role: 'distributor' },
-      { name: 'OutDoor Ads Ltd',      email: 'ads@outdoorads.co.nz', role: 'advertiser' },
-      { name: 'UrbanMedia Agency',    email: 'ads@urbanmedia.nz',   role: 'advertiser' },
-      { name: 'Jane Customer',        email: 'jane@customer.com',    role: 'customer' },
-      { name: 'John Shopper',         email: 'john@shopper.net',     role: 'customer' },
-      { name: 'Mall Admin',           email: 'admin@mall.com',       role: 'admin' }
+      { name: 'Kathmandu', email: 'retailer@kathmandu.co.nz', username: 'demo', password: '$2b$10$Q9Qw1Qw1Qw1Qw1Qw1Qw1QeQw1Qw1Qw1Qw1Qw1Qw1Qw1Qw1Qw1Qw1G', role: 'retailer' },
+      { name: 'Sample Distributor', email: 'dist@sample.com', username: '', password: '', role: 'distributor' },
+      { name: 'OutDoor Ads Ltd',      email: 'ads@outdoorads.co.nz', username: '', password: '', role: 'advertiser' },
+      { name: 'UrbanMedia Agency',    email: 'ads@urbanmedia.nz',   username: '', password: '', role: 'advertiser' },
+      { name: 'Jane Customer',        email: 'jane@customer.com',    username: '', password: '', role: 'customer' },
+      { name: 'John Shopper',         email: 'john@shopper.net',     username: '', password: '', role: 'customer' },
+      { name: 'Mall Admin',           email: 'admin@mall.com',       username: '', password: '', role: 'admin' }
     ].map(u => ({ id: uuidv4(), ...u }));
 
     for (const u of users) {

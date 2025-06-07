@@ -9,6 +9,9 @@ const QRCode = require('qrcode');
 const swaggerUi = require('swagger-ui-express');
 const swaggerJsdoc = require('swagger-jsdoc');
 const fetch = (...args) => import('node-fetch').then(mod => mod.default(...args)); // Fix for ESM
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
+const JWT_SECRET = process.env.JWT_SECRET || 'supersecret';
 
 const app = express();
 const BASE_URL = process.env.BASE_URL || 'https://glasscart2.onrender.com';
@@ -128,12 +131,13 @@ app.post('/generate-qr', async (req, res) => {
  *       201:
  *         description: Product created
  */
-app.get('/products', async (req, res) => {
-  const products = await models.getAllProducts();
-  res.json(products);
+app.get('/products', requireRetailerAuth, async (req, res) => {
+  // Only show products for this retailer (assuming distributor_id is retailer's id)
+  const products = await models.pool.query('SELECT * FROM products WHERE distributor_id=$1 ORDER BY created_at DESC', [req.user.id]);
+  res.json(products.rows);
 });
 
-app.post('/products', async (req, res) => {
+app.post('/products', requireRetailerAuth, async (req, res) => {
   const id = uuidv4();
   const { name, price } = req.body;
   const product = await models.createProduct({ id, name, price });
@@ -190,14 +194,14 @@ app.get('/products/:id', async (req, res) => {
   else res.status(404).json({ error: 'Not found' });
 });
 
-app.put('/products/:id', async (req, res) => {
+app.put('/products/:id', requireRetailerAuth, async (req, res) => {
   const { name, price } = req.body;
   const updated = await models.updateProduct(req.params.id, { name, price });
   if (updated) res.json(updated);
   else res.status(404).json({ error: 'Not found' });
 });
 
-app.delete('/products/:id', async (req, res) => {
+app.delete('/products/:id', requireRetailerAuth, async (req, res) => {
   await models.deleteProduct(req.params.id);
   res.status(204).end();
 });
@@ -239,11 +243,12 @@ app.delete('/products/:id', async (req, res) => {
  *     responses:
  *       201: { description: Campaign created }
  */
-app.get('/campaigns', async (req, res) => {
-  const campaigns = await models.getAllCampaigns();
-  res.json(campaigns);
+app.get('/campaigns', requireRetailerAuth, async (req, res) => {
+  // Only show campaigns for this retailer
+  const campaigns = await models.pool.query('SELECT * FROM campaigns WHERE retailer_id=$1 ORDER BY created_at DESC', [req.user.id]);
+  res.json(campaigns.rows);
 });
-app.post('/campaigns', async (req, res) => {
+app.post('/campaigns', requireRetailerAuth, async (req, res) => {
   try {
     const campaign = await models.createCampaign(req.body);
     res.status(201).json(campaign);
@@ -563,7 +568,7 @@ app.get('/analytics/scans/summary/city', async (req, res) => {
  *                   distance_to_poi_m: { type: integer }
  *                   user_agent: { type: string }
  */
-app.get('/analytics/scans/summary/campaign/:campaignId', async (req, res) => {
+app.get('/analytics/scans/summary/campaign/:campaignId', requireRetailerAuth, async (req, res) => {
   const campaignId = req.params.campaignId;
   const scans = await models.getScansByCampaign(campaignId);
   const result = scans.map(scan => ({
@@ -866,6 +871,49 @@ app.delete('/retailers/:id', async (req, res) => {
   if (rowCount === 0) return res.status(404).json({ error: 'Retailer not found' });
   res.status(204).send();
 });
+
+// Retailer login endpoint
+app.post('/retailers/login', async (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
+  const { rows } = await models.pool.query("SELECT * FROM users WHERE username=$1 AND role='retailer'", [username]);
+  if (rows.length === 0) return res.status(401).json({ error: 'Invalid credentials' });
+  const user = rows[0];
+  const match = await bcrypt.compare(password, user.password);
+  if (!match) return res.status(401).json({ error: 'Invalid credentials' });
+  const token = jwt.sign({ id: user.id, role: user.role, email: user.email }, JWT_SECRET, { expiresIn: '1d' });
+  res.json({ token });
+});
+
+// Middleware to check JWT and retailer role
+function requireRetailerAuth(req, res, next) {
+  const auth = req.headers.authorization;
+  if (!auth || !auth.startsWith('Bearer ')) return res.status(401).json({ error: 'Missing token' });
+  try {
+    const payload = jwt.verify(auth.split(' ')[1], JWT_SECRET);
+    if (payload.role !== 'retailer') return res.status(403).json({ error: 'Retailer access only' });
+    req.user = payload;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+}
+
+// Protect all /retailers endpoints
+app.use('/retailers', requireRetailerAuth);
+
+// Protect all campaign modification endpoints
+app.post('/campaigns', requireRetailerAuth, async (req, res, next) => next());
+app.put('/campaigns/:id', requireRetailerAuth, async (req, res, next) => next());
+app.delete('/campaigns/:id', requireRetailerAuth, async (req, res, next) => next());
+
+// Protect all product modification endpoints
+app.post('/products', requireRetailerAuth, async (req, res, next) => next());
+app.put('/products/:id', requireRetailerAuth, async (req, res, next) => next());
+app.delete('/products/:id', requireRetailerAuth, async (req, res, next) => next());
+
+// Protect analytics scan summary for campaign to only allow the owning retailer
+app.get('/analytics/scans/summary/campaign/:campaignId', requireRetailerAuth, async (req, res, next) => next());
 
 // Start server
 const PORT = process.env.PORT || 3000;
