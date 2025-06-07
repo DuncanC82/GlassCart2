@@ -872,6 +872,42 @@ app.delete('/retailers/:id', async (req, res) => {
   res.status(204).send();
 });
 
+/**
+ * @swagger
+ * /retailers/login:
+ *   post:
+ *     summary: Retailer login
+ *     tags: [Retailers]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [username, password]
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 example: demo
+ *               password:
+ *                 type: string
+ *                 example: demo
+ *     responses:
+ *       200:
+ *         description: JWT token for authentication
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 token:
+ *                   type: string
+ *                   description: JWT token
+ *       400:
+ *         description: Username and password required
+ *       401:
+ *         description: Invalid credentials
+ */
 // Retailer login endpoint
 app.post('/retailers/login', async (req, res) => {
   const { username, password } = req.body;
