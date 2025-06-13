@@ -25,6 +25,8 @@ async function seed() {
         id UUID PRIMARY KEY,
         name TEXT NOT NULL,
         email TEXT NOT NULL UNIQUE,
+        username TEXT UNIQUE,
+        password TEXT,
         role TEXT NOT NULL CHECK(role IN ('customer','advertiser','distributor','retailer','admin')),
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
@@ -108,19 +110,19 @@ async function seed() {
 
     console.log('▶️ Seeding users…');
     const users = [
-      { name: 'Kathmandu', email: 'retailer@kathmandu.co.nz', username: 'demo', password: '$2b$10$Q9Qw1Qw1Qw1Qw1Qw1Qw1QeQw1Qw1Qw1Qw1Qw1Qw1Qw1Qw1Qw1Qw1G', role: 'retailer' },
-      { name: 'Sample Distributor', email: 'dist@sample.com', username: '', password: '', role: 'distributor' },
-      { name: 'OutDoor Ads Ltd',      email: 'ads@outdoorads.co.nz', username: '', password: '', role: 'advertiser' },
-      { name: 'UrbanMedia Agency',    email: 'ads@urbanmedia.nz',   username: '', password: '', role: 'advertiser' },
-      { name: 'Jane Customer',        email: 'jane@customer.com',    username: '', password: '', role: 'customer' },
-      { name: 'John Shopper',         email: 'john@shopper.net',     username: '', password: '', role: 'customer' },
-      { name: 'Mall Admin',           email: 'admin@mall.com',       username: '', password: '', role: 'admin' }
+      { name: 'Kathmandu', email: 'retailer@kathmandu.co.nz', username: 'demo', password: '$2b$10$NUbGZDRj9DxL7mLEK1R3EO9GAqErOkWOKOo8t4XpxBboVK9WwOuJy', role: 'retailer' },
+      { name: 'Sample Distributor', email: 'dist@sample.com', username: null, password: null, role: 'distributor' },
+      { name: 'OutDoor Ads Ltd',      email: 'ads@outdoorads.co.nz', username: null, password: null, role: 'advertiser' },
+      { name: 'UrbanMedia Agency',    email: 'ads@urbanmedia.nz',   username: null, password: null, role: 'advertiser' },
+      { name: 'Jane Customer',        email: 'jane@customer.com',    username: null, password: null, role: 'customer' },
+      { name: 'John Shopper',         email: 'john@shopper.net',     username: null, password: null, role: 'customer' },
+      { name: 'Mall Admin',           email: 'admin@mall.com',       username: null, password: null, role: 'admin' }
     ].map(u => ({ id: uuidv4(), ...u }));
 
     for (const u of users) {
       await client.query(
-        `INSERT INTO users(id,name,email,role) VALUES($1,$2,$3,$4)`,
-        [u.id, u.name, u.email, u.role]
+        `INSERT INTO users(id,name,email,username,password,role) VALUES($1,$2,$3,$4,$5,$6)`,
+        [u.id, u.name, u.email, u.username, u.password, u.role]
       );
     }
 
