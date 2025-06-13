@@ -2,6 +2,7 @@
 // A richer seed script for GlassCart, with deeper, interlinked examples
 const { Pool } = require('pg');
 const { v4: uuidv4 } = require('uuid');
+const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -34,6 +35,7 @@ async function seed() {
       CREATE TABLE products (
         id UUID PRIMARY KEY,
         distributor_id UUID REFERENCES users(id),
+        retailer_id UUID REFERENCES users(id),
         name TEXT NOT NULL,
         price NUMERIC NOT NULL,
         description TEXT,
@@ -61,6 +63,7 @@ async function seed() {
         customer_id UUID REFERENCES users(id),
         product_id  UUID REFERENCES products(id),
         campaign_id UUID REFERENCES campaigns(id),
+        retailer_id UUID REFERENCES users(id),
         quantity    INTEGER NOT NULL,
         total_amount NUMERIC NOT NULL,
         commission_amount NUMERIC NOT NULL,
@@ -110,7 +113,7 @@ async function seed() {
 
     console.log('▶️ Seeding users…');
     const users = [
-      { name: 'Kathmandu', email: 'retailer@kathmandu.co.nz', username: 'demo', password: '$2b$10$NUbGZDRj9DxL7mLEK1R3EO9GAqErOkWOKOo8t4XpxBboVK9WwOuJy', role: 'retailer' },
+      { name: 'Example Store', email: 'retailer@example.com', username: 'example', password: '$2b$10$NUbGZDRj9DxL7mLEK1R3EO9GAqErOkWOKOo8t4XpxBboVK9WwOuJy', role: 'retailer' },
       { name: 'Sample Distributor', email: 'dist@sample.com', username: null, password: null, role: 'distributor' },
       { name: 'OutDoor Ads Ltd',      email: 'ads@outdoorads.co.nz', username: null, password: null, role: 'advertiser' },
       { name: 'UrbanMedia Agency',    email: 'ads@urbanmedia.nz',   username: null, password: null, role: 'advertiser' },
@@ -126,161 +129,108 @@ async function seed() {
       );
     }
 
-    console.log('▶️ Seeding products…');
-    const products = [
-      {
-        distributor_id: users[0].id,
-        name: 'Hybrid Trolley v5 - 70L - Black Stingray',
-        price: 399.98,
-        description: 'A durable, versatile travel trolley for adventure and business travel.',
-        image_url: 'https://cdn.shopify.com/s/files/1/0919/0116/5858/files/b0293_o4w_hybrid_trolley_v5_70l_b_a_600x600.jpg?v=1744066168',
-        stock_quantity: 50,
-        product_url: 'https://www.kathmandu.co.nz/products/hybrid-trolley-v5-70l-black-stingray'
-      },
-      {
-        distributor_id: users[0].id,
-        name: 'Hybrid Trolley v5 - 70L - Pure Navy',
-        price: 399.98,
-        description: 'Spacious and stylish trolley in Pure Navy for all your travel needs.',
-        image_url: 'https://cdn.shopify.com/s/files/1/0919/0116/5858/files/b0293_oje_hybrid_trolley_a_600x600.jpg?v=1744066166',
-        stock_quantity: 40,
-        product_url: 'https://www.kathmandu.co.nz/products/hybrid-trolley-v5-70l-pure-navy'
-      },
-      {
-        distributor_id: users[0].id,
-        name: "Women's Andulo 2-layer Rain Jacket - Black",
-        price: 199.98,
-        description: 'Waterproof, windproof, and breathable rain jacket for women.',
-        image_url: 'https://cdn.shopify.com/s/files/1/0919/0116/5858/files/a1066_902_andulo_womens_rain_jacket_v3_b_a_600x600.jpg?v=1744064620',
-        stock_quantity: 100,
-        product_url: 'https://www.kathmandu.co.nz/products/andulo-wmns-rain-jacket-v3-black'
-      },
-      {
-        distributor_id: users[0].id,
-        name: "Women's Epiq Hooded Down Jacket v2 - Black",
-        price: 299.98,
-        description: 'Warm, lightweight, and packable down jacket for women.',
-        image_url: 'https://cdn.shopify.com/s/files/1/0919/0116/5858/files/a0956_902_epiq_womens_hooded_down_jacket_v2_f_600x600.jpg?v=1744584404',
-        stock_quantity: 80,
-        product_url: 'https://www.kathmandu.co.nz/products/epiq-wmns-hooded-down-jacket-v2-black'
-      },
-      {
-        distributor_id: users[0].id,
-        name: "Men's Federate Travel Pants - Black",
-        price: 149.98,
-        description: 'Versatile, quick-dry travel pants for men.',
-        image_url: 'https://cdn.shopify.com/s/files/1/0919/0116/5858/files/a1127_902_federate_mens_travel_pants_a_600x600.jpg?v=1744064620',
-        stock_quantity: 120,
-        product_url: 'https://www.kathmandu.co.nz/products/federate-mens-travel-pants-black'
-      },
-      {
-        distributor_id: users[0].id,
-        name: 'Litehaul 38L Carry-On Pack - Black',
-        price: 249.98,
-        description: 'Carry-on travel pack with multiple compartments and laptop sleeve.',
-        image_url: 'https://cdn.shopify.com/s/files/1/0919/0116/5858/files/b0222_902_litehaul_38l_carry_on_pack_a_600x600.jpg?v=1744066168',
-        stock_quantity: 60,
-        product_url: 'https://www.kathmandu.co.nz/products/litehaul-38l-carry-on-pack-black'
-      },
-      {
-        distributor_id: users[0].id,
-        name: 'Flinders Merino Wool Beanie - Charcoal',
-        price: 39.98,
-        description: 'Soft, warm merino wool beanie for cold weather.',
-        image_url: 'https://cdn.shopify.com/s/files/1/0919/0116/5858/files/a1128_901_flinders_merino_wool_beanie_a_600x600.jpg?v=1744064620',
-        stock_quantity: 200,
-        product_url: 'https://www.kathmandu.co.nz/products/flinders-merino-wool-beanie-charcoal'
-      },
-      {
-        distributor_id: users[0].id,
-        name: 'Pocket It Rain Jacket - Black',
-        price: 99.98,
-        description: 'Lightweight, packable rain jacket for everyday use.',
-        image_url: 'https://cdn.shopify.com/s/files/1/0919/0116/5858/files/a1129_902_pocket_it_rain_jacket_a_600x600.jpg?v=1744064620',
-        stock_quantity: 150,
-        product_url: 'https://www.kathmandu.co.nz/products/pocket-it-rain-jacket-black'
-      },
-      {
-        distributor_id: users[0].id,
-        name: 'XT Series 70L Backpack - Black',
-        price: 349.98,
-        description: 'Technical hiking backpack with adjustable harness and rain cover.',
-        image_url: 'https://cdn.shopify.com/s/files/1/0919/0116/5858/files/b0223_902_xt_series_70l_backpack_a_600x600.jpg?v=1744066168',
-        stock_quantity: 30,
-        product_url: 'https://www.kathmandu.co.nz/products/xt-series-70l-backpack-black'
-      },
-      {
-        distributor_id: users[0].id,
-        name: 'KMDLogo Organic Cotton T-Shirt - White',
-        price: 49.98,
-        description: 'Classic fit organic cotton t-shirt with Kathmandu logo.',
-        image_url: 'https://cdn.shopify.com/s/files/1/0919/0116/5858/files/a1130_100_kmdlogo_organic_cotton_tshirt_a_600x600.jpg?v=1744064620',
-        stock_quantity: 180,
-        product_url: 'https://www.kathmandu.co.nz/products/kmdlogo-organic-cotton-t-shirt-white'
-      },
-      {
-        distributor_id: users[0].id,
-        name: 'Straw Lid Insulated Bottle - 950 ml - Vanilla',
-        price: 59.98,
-        description: 'Double-walled insulated bottle with straw lid. Colour: Vanilla. Unisex. Member price: $41.99.',
-        image_url: 'https://cdn.shopify.com/s/files/1/0919/0116/5858/files/b1488_427_straw_lid_insulated_bottle_950ml_a_600x600.jpg?v=1747267944',
-        stock_quantity: 1753,
-        product_url: 'https://www.kathmandu.co.nz/products/straw-lid-insulated-bottle-950-ml-vanilla'
-      }
-    ].map(p => ({ id: uuidv4(), ...p }));
+    console.log('▶️ Fetching products from FakeStoreAPI…');
+    const response = await fetch('https://fakestoreapi.com/products');
+    const apiProducts = await response.json();
+
+    const products = apiProducts.map(p => ({
+      id: uuidv4(),
+      retailer_id: users[0].id, // Example Store as retailer
+      distributor_id: users[0].id, // Example Store as distributor
+      name: p.title,
+      price: p.price,
+      description: p.description,
+      image_url: p.image,
+      stock_quantity: Math.floor(Math.random() * 100) + 1, // Random stock quantity
+      product_url: `https://example.com/products/${p.id}`
+    }));
 
     for (const p of products) {
       await client.query(
-        `INSERT INTO products(id,distributor_id,name,price,description,image_url,stock_quantity,product_url)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
-        [p.id,p.distributor_id,p.name,p.price,p.description,p.image_url,p.stock_quantity,p.product_url]
+        `INSERT INTO products(id,distributor_id,retailer_id,name,price,description,image_url,stock_quantity,product_url)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [p.id, p.distributor_id, p.retailer_id, p.name, p.price, p.description, p.image_url, p.stock_quantity, p.product_url]
       );
     }
 
     console.log('▶️ Seeding campaigns…');
     const campaigns = [
       {
-        retailer_id: users[0].id, // Kathmandu as retailer
-        product_id:    products[0].id,
-        campaign_name: 'Hybrid Trolley v5 - Black Stingray QR',
-        start_date:    new Date('2025-06-01T00:00Z'),
-        end_date:      new Date('2025-07-01T00:00Z'),
-        qr_code_identifier: 'kathmandu_black_stingray',
+        retailer_id: users[0].id, // Example Store as retailer
+        product_id: products.find(p => p.name.includes("DANVOUY Womens T Shirt Casual Cotton Short")).id,
+        campaign_name: "Summer Cotton T-Shirt Sale",
+        start_date: new Date("2025-06-15T00:00Z"),
+        end_date: new Date("2025-07-15T00:00Z"),
+        qr_code_identifier: "summer_cotton_tshirt",
         commission_percent: 10,
-        location:      'Wellington Storefront',
-        campaign_url:  products[0].product_url
+        location: "Online Store",
+        campaign_url: products.find(p => p.name.includes("DANVOUY Womens T Shirt Casual Cotton Short")).product_url
       },
       {
         retailer_id: users[0].id,
-        product_id:    products[1].id,
-        campaign_name: 'Hybrid Trolley v5 - Pure Navy QR',
-        start_date:    new Date('2025-06-01T00:00Z'),
-        end_date:      new Date('2025-07-01T00:00Z'),
-        qr_code_identifier: 'kathmandu_pure_navy',
-        commission_percent: 10,
-        location:      'Auckland Storefront',
-        campaign_url:  products[1].product_url
-      },
-      {
-        retailer_id: users[0].id,
-        product_id:    products[2].id,
-        campaign_name: "Women's Andulo Rain Jacket QR",
-        start_date:    new Date('2025-06-01T00:00Z'),
-        end_date:      new Date('2025-07-01T00:00Z'),
-        qr_code_identifier: 'kathmandu_andulo_jacket',
-        commission_percent: 10,
-        location:      'Christchurch Storefront',
-        campaign_url:  products[2].product_url
-      },
-      {
-        retailer_id: users[0].id,
-        product_id:    products[3].id,
-        campaign_name: 'Cap Off Season Sale',
-        start_date:    new Date('2025-08-01T00:00Z'),
-        end_date:      new Date('2025-09-01T00:00Z'),
-        qr_code_identifier: 'cap_sale',
+        product_id: products.find(p => p.name.includes("Opna Women's Short Sleeve Moisture")).id,
+        campaign_name: "Moisture-Wicking T-Shirts",
+        start_date: new Date("2025-06-15T00:00Z"),
+        end_date: new Date("2025-07-15T00:00Z"),
+        qr_code_identifier: "moisture_wicking_tshirts",
         commission_percent: 8,
-        location:      'Dunedin Main Street'
+        location: "Online Store",
+        campaign_url: products.find(p => p.name.includes("Opna Women's Short Sleeve Moisture")).product_url
+      },
+      {
+        retailer_id: users[0].id,
+        product_id: products.find(p => p.name.includes("MBJ Women's Solid Short Sleeve Boat Neck V")).id,
+        campaign_name: "Solid Boat Neck T-Shirts",
+        start_date: new Date("2025-06-15T00:00Z"),
+        end_date: new Date("2025-07-15T00:00Z"),
+        qr_code_identifier: "solid_boat_neck_tshirts",
+        commission_percent: 9,
+        location: "Online Store",
+        campaign_url: products.find(p => p.name.includes("MBJ Women's Solid Short Sleeve Boat Neck V")).product_url
+      },
+      {
+        retailer_id: users[0].id,
+        product_id: products.find(p => p.name.includes("Rain Jacket Women Windbreaker Striped Climbing Raincoats")).id,
+        campaign_name: "Striped Raincoats",
+        start_date: new Date("2025-06-15T00:00Z"),
+        end_date: new Date("2025-07-15T00:00Z"),
+        qr_code_identifier: "striped_raincoats",
+        commission_percent: 12,
+        location: "Online Store",
+        campaign_url: products.find(p => p.name.includes("Rain Jacket Women Windbreaker Striped Climbing Raincoats")).product_url
+      },
+      {
+        retailer_id: users[0].id,
+        product_id: products.find(p => p.name.includes("Lock and Love Women's Removable Hooded Faux Leather Moto Biker Jacket")).id,
+        campaign_name: "Moto Biker Jackets",
+        start_date: new Date("2025-06-15T00:00Z"),
+        end_date: new Date("2025-07-15T00:00Z"),
+        qr_code_identifier: "moto_biker_jackets",
+        commission_percent: 15,
+        location: "Online Store",
+        campaign_url: products.find(p => p.name.includes("Lock and Love Women's Removable Hooded Faux Leather Moto Biker Jacket")).product_url
+      },
+      {
+        retailer_id: users[0].id,
+        product_id: products.find(p => p.name.includes("BIYLACLESEN Women's 3-in-1 Snowboard Jacket Winter Coats")).id,
+        campaign_name: "Snowboard Winter Coats",
+        start_date: new Date("2025-06-15T00:00Z"),
+        end_date: new Date("2025-07-15T00:00Z"),
+        qr_code_identifier: "snowboard_winter_coats",
+        commission_percent: 20,
+        location: "Online Store",
+        campaign_url: products.find(p => p.name.includes("BIYLACLESEN Women's 3-in-1 Snowboard Jacket Winter Coats")).product_url
+      },
+      {
+        retailer_id: users[0].id,
+        product_id: products.find(p => p.name.includes("Samsung 49-Inch CHG90 144Hz Curved Gaming Monitor")).id,
+        campaign_name: "Gaming Monitor Sale",
+        start_date: new Date("2025-06-15T00:00Z"),
+        end_date: new Date("2025-07-15T00:00Z"),
+        qr_code_identifier: "gaming_monitor_sale",
+        commission_percent: 5,
+        location: "Online Store",
+        campaign_url: products.find(p => p.name.includes("Samsung 49-Inch CHG90 144Hz Curved Gaming Monitor")).product_url
       }
     ].map(c => ({ id: uuidv4(), ...c }));
 
@@ -301,46 +251,49 @@ async function seed() {
 
     console.log('▶️ Seeding orders…');
     const orders = [
-      // Jane buys 2 T-Shirts via Winter Warmth Tee
       {
-        customer_id: users[3].id,
-        product_id:  products[0].id,
-        campaign_id: campaigns[0].id,
-        quantity:    2,
-        total_amount: 79.98,
-        commission_amount: 7.99,
-        shipping_address: '123 Queen St, Wellington'
+        customer_id: users[4].id, // John Shopper
+        product_id: products.find(p => p.name.includes("DANVOUY Womens T Shirt Casual Cotton Short")).id,
+        campaign_id: campaigns.find(c => c.campaign_name === "Summer Cotton T-Shirt Sale").id,
+        retailer_id: users[0].id, // Example Store
+        quantity: 3,
+        total_amount: 38.97,
+        commission_amount: 3.90,
+        shipping_address: "123 Main St, Auckland",
+        created_at: new Date()
       },
-      // John buys 1 Bottle via Summer Hydrate
       {
-        customer_id: users[4].id,
-        product_id:  products[1].id,
-        campaign_id: campaigns[1].id,
-        quantity:    1,
-        total_amount: 24.99,
-        commission_amount: 3.00,
-        shipping_address: '456 K Road, Auckland'
+        customer_id: users[3].id, // Jane Customer
+        product_id: products.find(p => p.name.includes("Opna Women's Short Sleeve Moisture")).id,
+        campaign_id: campaigns.find(c => c.campaign_name === "Moisture-Wicking T-Shirts").id,
+        retailer_id: users[0].id, // Example Store
+        quantity: 2,
+        total_amount: 15.90,
+        commission_amount: 1.27,
+        shipping_address: "456 Queen St, Wellington",
+        created_at: new Date()
       },
-      // Jane buys 3 Totes directly (no campaign)
       {
-        customer_id: users[3].id,
-        product_id:  products[2].id,
-        campaign_id: null,
-        quantity:    3,
-        total_amount: 44.97,
-        commission_amount: 0,
-        shipping_address: '123 Queen St, Wellington'
+        customer_id: users[4].id, // John Shopper
+        product_id: products.find(p => p.name.includes("Samsung 49-Inch CHG90 144Hz Curved Gaming Monitor")).id,
+        campaign_id: campaigns.find(c => c.campaign_name === "Gaming Monitor Sale").id,
+        retailer_id: users[0].id, // Example Store
+        quantity: 1,
+        total_amount: 999.99,
+        commission_amount: 50.00,
+        shipping_address: "789 Tech Ave, Christchurch",
+        created_at: new Date()
       }
-    ].map(o => ({ id: uuidv4(), created_at: new Date(), ...o }));
+    ].map(o => ({ id: uuidv4(), ...o }));
 
     for (const o of orders) {
       await client.query(
         `INSERT INTO orders(
-           id,customer_id,product_id,campaign_id,
+           id,customer_id,product_id,campaign_id,retailer_id,
            quantity,total_amount,commission_amount,shipping_address,created_at
-         ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+         ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
         [
-          o.id,o.customer_id,o.product_id,o.campaign_id,
+          o.id,o.customer_id,o.product_id,o.campaign_id,o.retailer_id,
           o.quantity,o.total_amount,o.commission_amount,
           o.shipping_address,o.created_at
         ]
