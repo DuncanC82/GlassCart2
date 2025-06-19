@@ -281,6 +281,37 @@ async function getScanSummaryByCampaign(campaignId) {
   return rows[0];
 }
 
+// -------- Retailer --------
+async function createRetailer({ name, email, username, password }) {
+  const { rows } = await pool.query(
+    `INSERT INTO users(id, name, email, username, password, role, created_at)
+     VALUES($1, $2, $3, $4, $5, 'retailer', NOW()) RETURNING *`,
+    [uuidv4(), name, email, username, password]
+  );
+  return rows[0];
+}
+
+async function getRetailerById(id) {
+  const { rows } = await pool.query(
+    'SELECT * FROM users WHERE id = $1 AND role = $2',
+    [id, 'retailer']
+  );
+  return rows[0];
+}
+
+async function updateRetailer(id, { name, email, username, password }) {
+  const { rows } = await pool.query(
+    `UPDATE users SET name = $2, email = $3, username = $4, password = $5
+     WHERE id = $1 AND role = $6 RETURNING *`,
+    [id, name, email, username, password, 'retailer']
+  );
+  return rows[0];
+}
+
+async function deleteRetailer(id) {
+  await pool.query('DELETE FROM users WHERE id = $1 AND role = $2', [id, 'retailer']);
+}
+
 module.exports = {
   getAllProducts,
   getProductById,
@@ -303,5 +334,9 @@ module.exports = {
   getScanSummaryByCity,
   getScanSummaryByCampaign,
   getScansByCampaign,
+  createRetailer,
+  getRetailerById,
+  updateRetailer,
+  deleteRetailer,
   pool // Export the pool for use in index.js
 };

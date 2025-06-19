@@ -791,16 +791,21 @@ app.get('/retailers/:id', async (req, res) => {
  *         description: Retailer created
  */
 app.post('/retailers', async (req, res) => {
-  const { name, email } = req.body;
-  if (!name || !email) return res.status(400).json({ error: 'Name and email are required' });
+  const { name, email, username, password } = req.body;
+  if (!name || !email || !username || !password) return res.status(400).json({ error: 'Name, email, username, and password are required' });
   try {
+    // Check if username or email already exists
+    const existing = await pool.query("SELECT * FROM users WHERE (email=$1 OR username=$2) AND role='retailer'", [email, username]);
+    if (existing.rows.length > 0) {
+      return res.status(400).json({ error: 'Email or username already exists' });
+    }
+    const hashedPassword = await bcrypt.hash(password, 10);
     const { rows } = await pool.query(
-      "INSERT INTO users(id, name, email, role) VALUES($1, $2, $3, 'retailer') RETURNING *",
-      [uuidv4(), name, email]
+      "INSERT INTO users(id, name, email, username, password, role) VALUES($1, $2, $3, $4, $5, 'retailer') RETURNING *",
+      [uuidv4(), name, email, username, hashedPassword]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
-    if (err.code === '23505') return res.status(400).json({ error: 'Email already exists' });
     res.status(500).json({ error: err.message });
   }
 });
@@ -829,6 +834,10 @@ app.post('/retailers', async (req, res) => {
  *                 type: string
  *               email:
  *                 type: string
+ *               username:
+ *                 type: string
+ *               password:
+ *                 type: string
  *     responses:
  *       200:
  *         description: Retailer updated
@@ -836,11 +845,18 @@ app.post('/retailers', async (req, res) => {
  *         description: Retailer not found
  */
 app.put('/retailers/:id', async (req, res) => {
-  const { name, email } = req.body;
+  const { name, email, username, password } = req.body;
   const { id } = req.params;
+  const updates = {};
+  if (name) updates.name = name;
+  if (email) updates.email = email;
+  if (username) updates.username = username;
+  if (password) updates.password = await bcrypt.hash(password, 10);
+  const setClause = Object.keys(updates).map((key, i) => `${key}=$${i + 2}`).join(', ');
+  const values = [...Object.values(updates), id];
   const { rows } = await pool.query(
-    "UPDATE users SET name=COALESCE($2,name), email=COALESCE($3,email) WHERE id=$1 AND role='retailer' RETURNING *",
-    [id, name, email]
+    `UPDATE users SET ${setClause} WHERE id=$1 AND role='retailer' RETURNING *`,
+    values
   );
   if (rows.length === 0) return res.status(404).json({ error: 'Retailer not found' });
   res.json(rows[0]);
